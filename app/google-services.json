@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "946046091101",
+    "project_id": "spherical-booth-366013",
+    "storage_bucket": "spherical-booth-366013.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:946046091101:android:926097a2f8e146646832b4",
+        "android_client_info": {
+          "package_name": "com.aistudio.assetverify.faaudit"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "946046091101-27m2mitcdkubr3t07ia535g4jul1ek8g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.assetverify.faaudit",
+            "certificate_hash": "da5ac0b2417ee028401596dd02739d55dd7c195b"
+          }
+        },
+        {
+          "client_id": "946046091101-bu6gja0c5dudlflj17ega0cljrfo8o3f.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_9S0OSjKhbLMVSY0mSb0oIPx2YgAIuUE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "946046091101-bu6gja0c5dudlflj17ega0cljrfo8o3f.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

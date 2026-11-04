@@ -1,0 +1,53 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "assetflow-backend-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-10-22",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "vars": {
+    "ENVIRONMENT": "local",
+    "FIREBASE_PROJECT_ID": "spherical-booth-366013",
+    "SHARD_ALLOWLIST": "SHARD_01"
+  },
+  "d1_databases": [
+    {
+      "binding": "CONTROL_DB",
+      "database_name": "assetflow-control-db-local",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations/control"
+    },
+    {
+      "binding": "SHARD_01",
+      "database_name": "assetflow-shard-01-local",
+      "database_id": "11111111-1111-1111-1111-111111111111",
+      "migrations_dir": "migrations/shard"
+    }
+  ],
+  "env": {
+    "production": {
+      "workers_dev": true,
+      "vars": {
+        "ENVIRONMENT": "production",
+        "FIREBASE_PROJECT_ID": "spherical-booth-366013",
+        "SHARD_ALLOWLIST": "SHARD_01"
+      },
+      "d1_databases": [
+        {
+          "binding": "CONTROL_DB",
+          "database_name": "assetflow-control-db",
+          "database_id": "b5312ec1-4bf0-4d1a-98aa-c2cad53d9199",
+          "migrations_dir": "migrations/control"
+        },
+        {
+          "binding": "SHARD_01",
+          "database_name": "assetflow-shard-01",
+          "database_id": "ac293e8b-7888-4507-a794-abc85f46b63c",
+          "migrations_dir": "migrations/shard"
+        }
+      ]
+    }
+  }
+}

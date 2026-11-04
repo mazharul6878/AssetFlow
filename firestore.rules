@@ -1,0 +1,1419 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isNotDeletedIdentity(workspaceId) {
+      return !exists(/databases/$(database)/documents/users/$(workspaceId)/deleted_identities/$(request.auth.uid));
+    }
+
+    // Team membership check: workspace owner OR explicitly registered in workspace's role_assignments
+    function isTeamMember(workspaceId) {
+      let rolePath = /databases/$(database)/documents/users/$(workspaceId)/role_assignments/$(request.auth.uid);
+      return isSignedIn() && isNotDeletedIdentity(workspaceId) && (
+        request.auth.uid == workspaceId ||
+        (exists(rolePath) &&
+         get(rolePath).data.userId == workspaceId &&
+         get(rolePath).data.memberUid == request.auth.uid &&
+         (!('accountStatus' in get(rolePath).data) || get(rolePath).data.accountStatus == 'Active'))
+      );
+    }
+
+    function isInitialOwnerForWorkspace(workspaceId) {
+      let ownPath = /databases/$(database)/documents/users/$(workspaceId)/system_config/ownership;
+      let rolePath = /databases/$(database)/documents/users/$(workspaceId)/role_assignments/$(request.auth.uid);
+      return isSignedIn() && isNotDeletedIdentity(workspaceId) && (
+        (request.auth.uid == workspaceId && !exists(rolePath)) ||
+        (exists(ownPath) && get(ownPath).data.ownerUid == request.auth.uid) ||
+        (exists(rolePath) && (('isInitialOwner' in get(rolePath).data) && get(rolePath).data.isInitialOwner == true)) ||
+        (exists(rolePath) && get(rolePath).data.role == 'Owner')
+      );
+    }
+
+    // Privileges are scoped to this workspace. Global token claims and email addresses
+    // must not grant access to unrelated workspaces.
+    function isAdminForWorkspace(workspaceId) {
+      let rolePath = /databases/$(database)/documents/users/$(workspaceId)/role_assignments/$(request.auth.uid);
+      return isSignedIn() && isNotDeletedIdentity(workspaceId) && (
+        (request.auth.uid == workspaceId && !exists(rolePath)) ||
+        (exists(rolePath) &&
+         get(rolePath).data.userId == workspaceId &&
+         get(rolePath).data.memberUid == request.auth.uid &&
+         get(rolePath).data.role in ['Admin', 'Owner'] &&
+         (!('accountStatus' in get(rolePath).data) || get(rolePath).data.accountStatus == 'Active'))
+      );
+    }
+
+    function canReviewWorkspace(workspaceId) {
+      let rolePath = /databases/$(database)/documents/users/$(workspaceId)/role_assignments/$(request.auth.uid);
+      return isSignedIn() && isNotDeletedIdentity(workspaceId) && (
+        (request.auth.uid == workspaceId && !exists(rolePath)) ||
+        (exists(rolePath) &&
+         get(rolePath).data.userId == workspaceId &&
+         (!('accountStatus' in get(rolePath).data) || get(rolePath).data.accountStatus == 'Active') &&
+         (get(rolePath).data.role in ['Admin', 'Owner', 'Reviewer'] ||
+          (('hasReviewAuthority' in get(rolePath).data) && get(rolePath).data.hasReviewAuthority == true)))
+      );
+    }
+
+    function canPublishToMaster(workspaceId) {
+      let rolePath = /databases/$(database)/documents/users/$(workspaceId)/role_assignments/$(request.auth.uid);
+      return isSignedIn() && isNotDeletedIdentity(workspaceId) && (
+        (request.auth.uid == workspaceId && !exists(rolePath)) ||
+        (exists(rolePath) &&
+         get(rolePath).data.userId == workspaceId &&
+         (!('accountStatus' in get(rolePath).data) || get(rolePath).data.accountStatus == 'Active') &&
+         (get(rolePath).data.role in ['Admin', 'Owner'] ||
+          (('canPublish' in get(rolePath).data) && get(rolePath).data.canPublish == true)))
+      );
+    }
+
+    function canSyncDrive(workspaceId) {
+      let rolePath = /databases/$(database)/documents/users/$(workspaceId)/role_assignments/$(request.auth.uid);
+      return isSignedIn() && isNotDeletedIdentity(workspaceId) && (
+        (request.auth.uid == workspaceId && !exists(rolePath)) ||
+        (exists(rolePath) &&
+         get(rolePath).data.userId == workspaceId &&
+         (!('accountStatus' in get(rolePath).data) || get(rolePath).data.accountStatus == 'Active') &&
+         (get(rolePath).data.role in ['Admin', 'Owner'] ||
+          (('canSyncDrive' in get(rolePath).data) && get(rolePath).data.canSyncDrive == true)))
+      );
+    }
+
+    function canPublishAndSync(workspaceId) {
+      let rolePath = /databases/$(database)/documents/users/$(workspaceId)/role_assignments/$(request.auth.uid);
+      return isSignedIn() && isNotDeletedIdentity(workspaceId) && (
+        (request.auth.uid == workspaceId && !exists(rolePath)) ||
+        (exists(rolePath) &&
+         get(rolePath).data.userId == workspaceId &&
+         (!('accountStatus' in get(rolePath).data) || get(rolePath).data.accountStatus == 'Active') &&
+         (get(rolePath).data.role in ['Admin', 'Owner'] ||
+          ((('canPublish' in get(rolePath).data) && get(rolePath).data.canPublish == true) &&
+           (('canSyncDrive' in get(rolePath).data) && get(rolePath).data.canSyncDrive == true))))
+      );
+    }
+
+    // Client assignment check for multi-client scoped documents:
+    // If clientId is blank (legacy records), falls back to isTeamMember(workspaceId).
+    // If clientId is non-blank, allows Admin/Reviewer or an Auditor whose client_assignments/{clientId}_{uid} is Assigned
+    // (or if no client_assignments doc exists for that clientId_uid in legacy unit tests, falls back to isTeamMember).
+    function canAccessClientScope(workspaceId, data) {
+      let cid = data.get('clientId', '');
+      let assignPath = /databases/$(database)/documents/users/$(workspaceId)/client_assignments/$(cid + '_' + request.auth.uid);
+      return isTeamMember(workspaceId) && (
+        cid == '' ||
+        isAdminForWorkspace(workspaceId) ||
+        canReviewWorkspace(workspaceId) ||
+        !exists(assignPath) ||
+        get(assignPath).data.get('assignedStatus', 'Assigned') == 'Assigned'
+      );
+    }
+
+    function isValidUserProfile(data, workspaceId) {
+      return data.keys().hasAll([
+        'displayName', 'email', 'role', 'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'displayName', 'fullName', 'nickname', 'email', 'role', 'accountStatus',
+        'hasReviewAuthority', 'canPublish', 'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.displayName is string && data.displayName.size() <= 150 &&
+      (!('fullName' in data) || (data.fullName is string && data.fullName.size() <= 150)) &&
+      (!('nickname' in data) || (data.nickname is string && data.nickname.size() <= 40)) &&
+      (!('accountStatus' in data) || (data.accountStatus is string && data.accountStatus in ['Active', 'Deactivated', 'Deleted'])) &&
+      (!('hasReviewAuthority' in data) || data.hasReviewAuthority is bool) &&
+      (!('canPublish' in data) || data.canPublish is bool) &&
+      data.email is string && data.email.size() <= 200 &&
+      data.role is string && data.role in ['Owner', 'Auditor', 'Reviewer', 'Admin', 'EndUser', 'PendingAdmin'] &&
+      (!(data.role in ['Admin', 'Owner']) || isAdminForWorkspace(workspaceId)) &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSelfUserProfile(data, workspaceId) {
+      return isValidUserProfile(data, workspaceId) &&
+        data.role in ['Auditor', 'EndUser', 'PendingAdmin'] &&
+        (!('hasReviewAuthority' in data) || data.hasReviewAuthority == false) &&
+        (!('canPublish' in data) || data.canPublish == false);
+    }
+
+    function isValidSelfUserProfileUpdate(data, oldData, workspaceId) {
+      return isValidUserProfile(data, workspaceId) &&
+        data.role == oldData.role &&
+        data.get('hasReviewAuthority', false) == oldData.get('hasReviewAuthority', false) &&
+        data.get('canPublish', false) == oldData.get('canPublish', false);
+    }
+
+    function isValidRoleAssignment(data, workspaceId) {
+      return data.keys().hasAll([
+        'memberUid', 'email', 'displayName', 'role',
+        'auditLogId',
+        'assignedByUid', 'assignedByName', 'lastActiveAtIso',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'memberUid', 'email', 'displayName', 'fullName', 'nickname', 'role',
+        'isInitialOwner', 'accountStatus',
+        'hasReviewAuthority', 'canPublish', 'canSyncDrive',
+        'canManageUsersAndRoles', 'canDeleteClientsAndUsers',
+        'auditLogId',
+        'assignedByUid', 'assignedByName', 'lastActiveAtIso',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.memberUid is string && data.memberUid.size() >= 1 && data.memberUid.size() <= 128 &&
+      data.email is string && data.email.size() <= 200 &&
+      data.displayName is string && data.displayName.size() <= 150 &&
+      (!('fullName' in data) || (data.fullName is string && data.fullName.size() <= 150)) &&
+      (!('nickname' in data) || (data.nickname is string && data.nickname.size() <= 40)) &&
+      (!('isInitialOwner' in data) || data.isInitialOwner is bool) &&
+      (!('accountStatus' in data) || (data.accountStatus is string && data.accountStatus in ['Active', 'Deactivated'])) &&
+      (!('hasReviewAuthority' in data) || data.hasReviewAuthority is bool) &&
+      (!('canPublish' in data) || data.canPublish is bool) &&
+      (!('canSyncDrive' in data) || data.canSyncDrive is bool) &&
+      (!('canManageUsersAndRoles' in data) || data.canManageUsersAndRoles is bool) &&
+      (!('canDeleteClientsAndUsers' in data) || data.canDeleteClientsAndUsers is bool) &&
+      data.auditLogId is string && data.auditLogId.size() >= 1 && data.auditLogId.size() <= 128 &&
+      data.role is string && data.role in ['Owner', 'Auditor', 'Reviewer', 'Admin', 'EndUser', 'PendingAdmin'] &&
+      data.assignedByUid is string && data.assignedByUid.size() <= 128 &&
+      data.assignedByName is string && data.assignedByName.size() <= 150 &&
+      data.lastActiveAtIso is string && data.lastActiveAtIso.size() <= 60 &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidFARAsset(data, workspaceId) {
+      return data.keys().hasAll([
+        'sl', 'assetId', 'sourceRow', 'assetDescription', 'assetClass',
+        'capitalizedOn', 'costTk', 'nbvTk', 'farQty', 'farQtyPresent',
+        'method', 'sheetOrigin', 'importBatchId', 'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'sl', 'assetId', 'sourceRow', 'assetDescription', 'assetClass',
+        'capitalizedOn', 'costTk', 'nbvTk', 'farQty', 'farQtyPresent',
+        'method', 'sheetOrigin', 'importBatchId',
+        'clientId', 'fiscalYearId', 'department', 'location', 'matchingKeyValue',
+        'sourceWorkbookName', 'sourceWorksheetName', 'rawRowByHeaderJson', 'mappedValuesByFieldIdJson',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.sl is int && data.sl >= 0 &&
+      data.assetId is string && data.assetId.size() >= 1 && data.assetId.size() <= 100 &&
+      data.sourceRow is int && data.sourceRow >= 1 &&
+      data.assetDescription is string && data.assetDescription.size() <= 500 &&
+      data.assetClass is string && data.assetClass.size() <= 150 &&
+      data.capitalizedOn is string && data.capitalizedOn.size() <= 50 &&
+      data.costTk is number &&
+      data.nbvTk is number &&
+      data.farQty is int && data.farQty >= 0 &&
+      data.farQtyPresent is bool &&
+      data.method is string && data.method.size() <= 100 &&
+      data.sheetOrigin is string && data.sheetOrigin.size() <= 100 &&
+      data.importBatchId is string && data.importBatchId.size() <= 100 &&
+      (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 128)) &&
+      (!('fiscalYearId' in data) || (data.fiscalYearId is string && data.fiscalYearId.size() <= 60)) &&
+      (!('department' in data) || (data.department is string && data.department.size() <= 200)) &&
+      (!('location' in data) || (data.location is string && data.location.size() <= 200)) &&
+      (!('matchingKeyValue' in data) || (data.matchingKeyValue is string && data.matchingKeyValue.size() <= 128)) &&
+      (!('sourceWorkbookName' in data) || (data.sourceWorkbookName is string && data.sourceWorkbookName.size() <= 256)) &&
+      (!('sourceWorksheetName' in data) || (data.sourceWorksheetName is string && data.sourceWorksheetName.size() <= 128)) &&
+      (!('rawRowByHeaderJson' in data) || (data.rawRowByHeaderJson is string && data.rawRowByHeaderJson.size() <= 50000)) &&
+      (!('mappedValuesByFieldIdJson' in data) || (data.mappedValuesByFieldIdJson is string && data.mappedValuesByFieldIdJson.size() <= 50000)) &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCountingRecord(data, workspaceId) {
+      return data.keys().hasAll([
+        'assetKey', 'assetId', 'sourceRow', 'found', 'countDate', 'countedBy',
+        'countedByUserId', 'buildingSite', 'buildingSiteOther',
+        'floor', 'floorOther', 'roomLocation', 'roomLocationOther',
+        'department', 'departmentOther', 'userCustodian',
+        'tagStatus', 'tagNumberAcn', 'brandModel', 'physicalQtyText',
+        'condition', 'inUse', 'photoRef', 'remarks', 'qtyDiffText',
+        'result', 'countingStatus', 'applicableExceptions',
+        'reviewedBy', 'reviewedByUserId', 'reviewerRequiredFlag',
+        'reviewedAt', 'reviewStatus', 'clientExplanation',
+        'isDraft', 'auditTrailSummary', 'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'assetKey', 'assetId', 'sourceRow', 'found', 'countDate', 'countedBy',
+        'countedByUserId', 'buildingSite', 'buildingSiteOther',
+        'floor', 'floorOther', 'roomLocation', 'roomLocationOther',
+        'department', 'departmentOther', 'userCustodian',
+        'tagStatus', 'tagNumberAcn', 'brandModel', 'physicalQtyText',
+        'condition', 'inUse', 'photoRef', 'remarks', 'qtyDiffText',
+        'result', 'countingStatus', 'applicableExceptions',
+        'reviewedBy', 'reviewedByUserId', 'reviewerRequiredFlag',
+        'reviewedAt', 'reviewStatus', 'clientExplanation',
+        'isDraft', 'auditTrailSummary',
+        'clientId', 'fiscalYearId', 'dynamicFieldValuesJson',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.assetKey is string && data.assetKey.size() >= 1 && data.assetKey.size() <= 128 &&
+      data.assetId is string && data.assetId.size() >= 1 && data.assetId.size() <= 100 &&
+      data.sourceRow is int && data.sourceRow >= 1 &&
+      data.found is string && data.found.size() <= 50 &&
+      data.countDate is string && data.countDate.size() <= 40 &&
+      data.countedBy is string && data.countedBy.size() <= 150 &&
+      data.countedByUserId is string && data.countedByUserId.size() <= 128 &&
+      data.buildingSite is string && data.buildingSite.size() <= 150 &&
+      data.buildingSiteOther is string && data.buildingSiteOther.size() <= 150 &&
+      data.floor is string && data.floor.size() <= 100 &&
+      data.floorOther is string && data.floorOther.size() <= 100 &&
+      data.roomLocation is string && data.roomLocation.size() <= 150 &&
+      data.roomLocationOther is string && data.roomLocationOther.size() <= 150 &&
+      data.department is string && data.department.size() <= 150 &&
+      data.departmentOther is string && data.departmentOther.size() <= 150 &&
+      data.userCustodian is string && data.userCustodian.size() <= 150 &&
+      data.tagStatus is string && data.tagStatus.size() <= 100 &&
+      data.tagNumberAcn is string && data.tagNumberAcn.size() <= 100 &&
+      data.brandModel is string && data.brandModel.size() <= 150 &&
+      data.physicalQtyText is string && data.physicalQtyText.size() <= 30 &&
+      data.condition is string && data.condition.size() <= 50 &&
+      data.inUse is string && data.inUse.size() <= 30 &&
+      data.photoRef is string && data.photoRef.size() <= 4000 &&
+      data.remarks is string && data.remarks.size() <= 2000 &&
+      data.qtyDiffText is string && data.qtyDiffText.size() <= 30 &&
+      data.result is string && data.result.size() <= 80 &&
+      data.countingStatus is string && data.countingStatus.size() <= 80 &&
+      data.applicableExceptions is string && data.applicableExceptions.size() <= 1000 &&
+      data.reviewedBy is string && data.reviewedBy.size() <= 150 &&
+      data.reviewedByUserId is string && data.reviewedByUserId.size() <= 128 &&
+      data.reviewerRequiredFlag is bool &&
+      data.reviewedAt is string && data.reviewedAt.size() <= 60 &&
+      data.reviewStatus is string && data.reviewStatus.size() <= 80 &&
+      data.clientExplanation is string && data.clientExplanation.size() <= 2000 &&
+      data.isDraft is bool &&
+      data.auditTrailSummary is string && data.auditTrailSummary.size() <= 4000 &&
+      (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 128)) &&
+      (!('fiscalYearId' in data) || (data.fiscalYearId is string && data.fiscalYearId.size() <= 60)) &&
+      (!('dynamicFieldValuesJson' in data) || (data.dynamicFieldValuesJson is string && data.dynamicFieldValuesJson.size() <= 50000)) &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function hasReviewerMetadata(data) {
+      return data.reviewStatus == 'Reviewed' ||
+        data.reviewedBy.size() > 0 ||
+        data.reviewedByUserId.size() > 0 ||
+        data.reviewedAt.size() > 0;
+    }
+
+    function reviewerMetadataUnchanged(data, oldData) {
+      return data.reviewedBy == oldData.reviewedBy &&
+        data.reviewedByUserId == oldData.reviewedByUserId &&
+        data.reviewedAt == oldData.reviewedAt &&
+        data.reviewStatus == oldData.reviewStatus;
+    }
+
+    function isValidDailyBatchSubmission(data, workspaceId) {
+      return data.keys().hasAll([
+        'batchId', 'userId', 'submitterUid', 'submitterFullName', 'submitterNickname',
+        'countingDate', 'versionNumber', 'recordCount', 'foundCount', 'notFoundCount',
+        'notAccessibleCount', 'manualEntryCount', 'status', 'recordsJson', 'adminRemarks',
+        'remarksByUid', 'remarksByName', 'remarksAtIso', 'reviewedByUid', 'reviewedByName',
+        'reviewedAtIso', 'publishedByUid', 'publishedByName', 'publishedAtIso',
+        'publishedMasterFileId', 'publishedMasterVersion', 'publicationAuditLogId',
+        'historyVersionsJson', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'batchId', 'userId', 'submitterUid', 'submitterFullName', 'submitterNickname',
+        'clientId', 'fiscalYearId',
+        'countingDate', 'versionNumber', 'recordCount', 'foundCount', 'notFoundCount',
+        'notAccessibleCount', 'manualEntryCount', 'status',
+        'approvalStatus', 'masterSyncStatus', 'masterSyncJobId', 'masterSyncError',
+        'dailySheetDriveFileId', 'isChunkedSnapshot', 'chunkCount',
+        'recordsJson', 'adminRemarks',
+        'remarksByUid', 'remarksByName', 'remarksAtIso', 'reviewedByUid', 'reviewedByName',
+        'reviewedAtIso', 'publishedByUid', 'publishedByName', 'publishedAtIso',
+        'publishedMasterFileId', 'publishedMasterVersion', 'publicationAuditLogId',
+        'historyVersionsJson', 'createdAt', 'updatedAt'
+      ]) &&
+      data.batchId is string && data.batchId.size() >= 1 && data.batchId.size() <= 128 &&
+      data.userId == workspaceId &&
+      data.submitterUid is string && data.submitterUid.size() >= 1 && data.submitterUid.size() <= 128 &&
+      data.submitterFullName is string && data.submitterFullName.size() <= 150 &&
+      data.submitterNickname is string && data.submitterNickname.size() <= 60 &&
+      (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 128)) &&
+      (!('fiscalYearId' in data) || (data.fiscalYearId is string && data.fiscalYearId.size() <= 60)) &&
+      data.countingDate is string && data.countingDate.size() <= 40 &&
+      data.versionNumber is int && data.versionNumber >= 1 &&
+      data.recordCount is int && data.recordCount >= 0 &&
+      data.foundCount is int && data.foundCount >= 0 &&
+      data.notFoundCount is int && data.notFoundCount >= 0 &&
+      data.notAccessibleCount is int && data.notAccessibleCount >= 0 &&
+      data.manualEntryCount is int && data.manualEntryCount >= 0 &&
+      data.status is string && data.status in [
+        'Draft / In Progress', 'Submitted / Pending Review', 'Under Review',
+        'Changes Requested', 'Corrected / Resubmitted', 'Approved — Awaiting Master Update',
+        'Published', 'Rejected', 'Sync Failed'
+      ] &&
+      (!('approvalStatus' in data) || (data.approvalStatus is string && data.approvalStatus.size() <= 60)) &&
+      (!('masterSyncStatus' in data) || (data.masterSyncStatus is string && data.masterSyncStatus.size() <= 60)) &&
+      (!('masterSyncJobId' in data) || (data.masterSyncJobId is string && data.masterSyncJobId.size() <= 128)) &&
+      (!('masterSyncError' in data) || (data.masterSyncError is string && data.masterSyncError.size() <= 2000)) &&
+      (!('dailySheetDriveFileId' in data) || (data.dailySheetDriveFileId is string && data.dailySheetDriveFileId.size() <= 256)) &&
+      (!('isChunkedSnapshot' in data) || data.isChunkedSnapshot is bool) &&
+      (!('chunkCount' in data) || (data.chunkCount is int && data.chunkCount >= 0)) &&
+      data.recordsJson is string && data.recordsJson.size() <= 100000 &&
+      data.adminRemarks is string && data.adminRemarks.size() <= 2000 &&
+      data.remarksByUid is string && data.remarksByUid.size() <= 128 &&
+      data.remarksByName is string && data.remarksByName.size() <= 150 &&
+      data.remarksAtIso is string && data.remarksAtIso.size() <= 60 &&
+      data.reviewedByUid is string && data.reviewedByUid.size() <= 128 &&
+      data.reviewedByName is string && data.reviewedByName.size() <= 150 &&
+      data.reviewedAtIso is string && data.reviewedAtIso.size() <= 60 &&
+      data.publishedByUid is string && data.publishedByUid.size() <= 128 &&
+      data.publishedByName is string && data.publishedByName.size() <= 150 &&
+      data.publishedAtIso is string && data.publishedAtIso.size() <= 60 &&
+      data.publishedMasterFileId is string && data.publishedMasterFileId.size() <= 256 &&
+      data.publishedMasterVersion is int && data.publishedMasterVersion >= 0 &&
+      data.publicationAuditLogId is string && data.publicationAuditLogId.size() <= 128 &&
+      data.historyVersionsJson is string && data.historyVersionsJson.size() <= 100000 &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function dailyBatchIdentityUnchanged(data, oldData) {
+      return data.batchId == oldData.batchId &&
+        data.userId == oldData.userId &&
+        data.submitterUid == oldData.submitterUid &&
+        data.countingDate == oldData.countingDate &&
+        data.createdAt == oldData.createdAt;
+    }
+
+    function dailyBatchContentUnchanged(data, oldData) {
+      return dailyBatchIdentityUnchanged(data, oldData) &&
+        data.versionNumber == oldData.versionNumber &&
+        data.recordCount == oldData.recordCount &&
+        data.foundCount == oldData.foundCount &&
+        data.notFoundCount == oldData.notFoundCount &&
+        data.notAccessibleCount == oldData.notAccessibleCount &&
+        data.manualEntryCount == oldData.manualEntryCount &&
+        data.recordsJson == oldData.recordsJson &&
+        data.historyVersionsJson == oldData.historyVersionsJson;
+    }
+
+    function dailyBatchSubmitterEdit(data, oldData) {
+      return request.auth.uid == oldData.submitterUid &&
+        oldData.status in ['Draft / In Progress', 'Changes Requested', 'Rejected'] &&
+        data.status in ['Draft / In Progress', 'Submitted / Pending Review'] &&
+        dailyBatchIdentityUnchanged(data, oldData) &&
+        data.reviewedByUid == oldData.reviewedByUid &&
+        data.reviewedByName == oldData.reviewedByName &&
+        data.reviewedAtIso == oldData.reviewedAtIso &&
+        data.publishedByUid == oldData.publishedByUid &&
+        data.publishedByName == oldData.publishedByName &&
+        data.publishedAtIso == oldData.publishedAtIso &&
+        data.publishedMasterFileId == oldData.publishedMasterFileId &&
+        data.publishedMasterVersion == oldData.publishedMasterVersion &&
+        data.publicationAuditLogId == oldData.publicationAuditLogId &&
+        data.diff(oldData).affectedKeys().hasOnly([
+          'submitterFullName', 'submitterNickname', 'recordCount', 'foundCount',
+          'notFoundCount', 'notAccessibleCount', 'manualEntryCount', 'status',
+          'approvalStatus', 'masterSyncStatus', 'dailySheetDriveFileId',
+          'recordsJson', 'versionNumber', 'updatedAt'
+        ]) &&
+        (
+          (oldData.status == 'Draft / In Progress' && data.versionNumber == oldData.versionNumber) ||
+          (oldData.status in ['Changes Requested', 'Rejected'] &&
+           data.status == 'Submitted / Pending Review' && data.versionNumber == oldData.versionNumber + 1)
+        );
+    }
+
+    function dailyBatchReviewTransition(data, oldData, workspaceId) {
+      return data.status in ['Under Review', 'Changes Requested', 'Rejected'] &&
+        oldData.status in ['Submitted / Pending Review', 'Corrected / Resubmitted', 'Under Review'] &&
+        canReviewWorkspace(workspaceId) &&
+        dailyBatchContentUnchanged(data, oldData) &&
+        data.publishedByUid == oldData.publishedByUid &&
+        data.publishedByName == oldData.publishedByName &&
+        data.publishedAtIso == oldData.publishedAtIso &&
+        data.publishedMasterFileId == oldData.publishedMasterFileId &&
+        data.publishedMasterVersion == oldData.publishedMasterVersion &&
+        data.publicationAuditLogId == oldData.publicationAuditLogId &&
+        data.diff(oldData).affectedKeys().hasOnly([
+          'status', 'approvalStatus', 'masterSyncStatus', 'masterSyncJobId', 'masterSyncError',
+          'adminRemarks', 'remarksByUid', 'remarksByName', 'remarksAtIso',
+          'reviewedByUid', 'reviewedByName', 'reviewedAtIso', 'updatedAt'
+        ]) &&
+        (
+          (data.status == 'Under Review' && data.reviewedByUid == request.auth.uid &&
+           data.reviewedByName.size() > 0 && data.reviewedAtIso.size() > 0) ||
+          (data.status in ['Changes Requested', 'Rejected'] && data.remarksByUid == request.auth.uid &&
+           data.remarksByName.size() > 0 && data.remarksAtIso.size() > 0)
+        );
+    }
+
+    function dailyBatchPublishFailure(data, oldData, workspaceId) {
+      return data.status == 'Sync Failed' &&
+        oldData.status in ['Under Review', 'Approved - Awaiting Master Update', 'Approved — Awaiting Master Update', 'Sync Failed'] &&
+        canPublishAndSync(workspaceId) &&
+        dailyBatchContentUnchanged(data, oldData) &&
+        data.reviewedByUid == oldData.reviewedByUid &&
+        data.reviewedByName == oldData.reviewedByName &&
+        data.reviewedAtIso == oldData.reviewedAtIso &&
+        data.publishedByUid == oldData.publishedByUid &&
+        data.publishedByName == oldData.publishedByName &&
+        data.publishedAtIso == oldData.publishedAtIso &&
+        data.publishedMasterFileId == oldData.publishedMasterFileId &&
+        data.publishedMasterVersion == oldData.publishedMasterVersion &&
+        data.publicationAuditLogId == oldData.publicationAuditLogId &&
+        data.diff(oldData).affectedKeys().hasOnly(['status', 'approvalStatus', 'masterSyncStatus', 'masterSyncJobId', 'masterSyncError', 'adminRemarks', 'updatedAt']);
+    }
+
+    function dailyBatchPublishSuccess(data, oldData, workspaceId) {
+      let settingsPath = /databases/$(database)/documents/users/$(workspaceId)/project_settings/main;
+      return data.status == 'Published' &&
+        oldData.status in ['Under Review', 'Approved - Awaiting Master Update', 'Approved — Awaiting Master Update', 'Sync Failed'] &&
+        canPublishAndSync(workspaceId) &&
+        dailyBatchContentUnchanged(data, oldData) &&
+        data.reviewedByUid == request.auth.uid &&
+        data.publishedByUid == request.auth.uid &&
+        data.publishedByName.size() > 0 && data.publishedAtIso.size() > 0 &&
+        data.publishedMasterFileId.size() > 0 &&
+        data.publishedMasterVersion > oldData.publishedMasterVersion &&
+        exists(settingsPath) &&
+        data.publishedMasterVersion == get(settingsPath).data.masterWorkbookVersion &&
+        data.diff(oldData).affectedKeys().hasOnly([
+          'status', 'approvalStatus', 'masterSyncStatus', 'masterSyncJobId', 'masterSyncError',
+          'publishedByUid', 'publishedByName', 'publishedAtIso',
+          'publishedMasterFileId', 'publishedMasterVersion', 'publicationAuditLogId', 'updatedAt'
+        ]) &&
+        batchPublicationAuditMatches(data, workspaceId);
+    }
+
+    function batchPublicationAuditMatches(data, workspaceId) {
+      let auditPath = /databases/$(database)/documents/users/$(workspaceId)/activity_logs/$(data.publicationAuditLogId);
+      return data.publicationAuditLogId.size() > 0 &&
+        existsAfter(auditPath) &&
+        getAfter(auditPath).data.actionType == 'PUBLISH_DAILY_BATCH' &&
+        getAfter(auditPath).data.targetId == data.batchId &&
+        getAfter(auditPath).data.actorUserId == request.auth.uid &&
+        getAfter(auditPath).data.userId == workspaceId;
+    }
+
+    function submissionPublicationAuditMatches(data, workspaceId) {
+      let auditPath = /databases/$(database)/documents/users/$(workspaceId)/activity_logs/$(data.publishedAuditLogId);
+      return data.publishedAuditLogId.size() > 0 &&
+        existsAfter(auditPath) &&
+        getAfter(auditPath).data.actionType == 'PUBLISH_USER_SUBMISSION' &&
+        getAfter(auditPath).data.targetId == data.submissionId &&
+        getAfter(auditPath).data.actorUserId == request.auth.uid &&
+        getAfter(auditPath).data.userId == workspaceId;
+    }
+
+    function submissionContentUnchanged(data, oldData) {
+      return data.submitterUid == oldData.submitterUid &&
+        data.workspaceId == oldData.workspaceId &&
+        data.assetKey == oldData.assetKey &&
+        data.assetId == oldData.assetId &&
+        data.sourceRow == oldData.sourceRow &&
+        data.schemaVersionId == oldData.schemaVersionId &&
+        data.schemaVersionNumber == oldData.schemaVersionNumber &&
+        data.fieldValuesJson == oldData.fieldValuesJson &&
+        data.fixedFieldSnapshotJson == oldData.fixedFieldSnapshotJson &&
+        data.photoIdsCsv == oldData.photoIdsCsv;
+    }
+
+    function isValidMasterDataConfig(data, workspaceId) {
+      return data.keys().hasAll([
+        'auditors', 'sites', 'floors', 'rooms', 'departments',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'auditors', 'sites', 'floors', 'rooms', 'departments',
+        'clientId', 'fiscalYearId',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.auditors is string && data.auditors.size() <= 5000 &&
+      data.sites is string && data.sites.size() <= 5000 &&
+      data.floors is string && data.floors.size() <= 5000 &&
+      data.rooms is string && data.rooms.size() <= 10000 &&
+      data.departments is string && data.departments.size() <= 5000 &&
+      (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 128)) &&
+      (!('fiscalYearId' in data) || (data.fiscalYearId is string && data.fiscalYearId.size() <= 60)) &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidExceptionRecord(data, workspaceId) {
+      return data.keys().hasAll([
+        'assetKey', 'assetId', 'sourceRow', 'exceptionType', 'description',
+        'status', 'followUpNotes', 'resolutionHistory',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'assetKey', 'assetId', 'sourceRow', 'exceptionType', 'description',
+        'status', 'followUpNotes', 'resolutionHistory',
+        'clientId', 'fiscalYearId',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.assetKey is string && data.assetKey.size() >= 1 && data.assetKey.size() <= 128 &&
+      data.assetId is string && data.assetId.size() >= 1 && data.assetId.size() <= 100 &&
+      data.sourceRow is int && data.sourceRow >= 1 &&
+      data.exceptionType is string && data.exceptionType.size() >= 1 && data.exceptionType.size() <= 100 &&
+      data.description is string && data.description.size() <= 1000 &&
+      data.status is string && data.status.size() <= 50 &&
+      data.followUpNotes is string && data.followUpNotes.size() <= 2000 &&
+      data.resolutionHistory is string && data.resolutionHistory.size() <= 3000 &&
+      (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 128)) &&
+      (!('fiscalYearId' in data) || (data.fiscalYearId is string && data.fiscalYearId.size() <= 60)) &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidFoundNotInFarRecord(data, workspaceId) {
+      return data.keys().hasAll([
+        'tempId', 'assetIdIfKnown', 'description', 'assetClass',
+        'buildingSite', 'buildingSiteOther', 'floor', 'floorOther',
+        'roomLocation', 'roomLocationOther', 'department', 'departmentOther',
+        'userCustodian', 'tagStatus', 'tagNumberAcn', 'brandModel',
+        'physicalQtyText', 'physicalQty', 'found', 'condition', 'inUse',
+        'countDate', 'countedBy', 'countedByUserId',
+        'reviewedBy', 'reviewedByUserId', 'reviewedAt',
+        'photoRef', 'remarks', 'clientExplanation',
+        'recordStatus', 'classificationStatus', 'isDraft', 'auditTrailSummary',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id', 'tempId', 'assetIdIfKnown', 'description', 'assetClass',
+        'buildingSite', 'buildingSiteOther', 'floor', 'floorOther',
+        'roomLocation', 'roomLocationOther', 'department', 'departmentOther',
+        'userCustodian', 'tagStatus', 'tagNumberAcn', 'brandModel',
+        'physicalQtyText', 'physicalQty', 'found', 'condition', 'inUse',
+        'countDate', 'countedBy', 'countedByUserId',
+        'reviewedBy', 'reviewedByUserId', 'reviewedAt',
+        'photoRef', 'remarks', 'clientExplanation',
+        'recordStatus', 'classificationStatus', 'isDraft', 'auditTrailSummary',
+        'clientId', 'fiscalYearId',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      (!('id' in data) || (data.id is string && data.id.size() <= 128)) &&
+      data.tempId is string && data.tempId.size() >= 1 && data.tempId.size() <= 80 &&
+      data.assetIdIfKnown is string && data.assetIdIfKnown.size() <= 100 &&
+      data.description is string && data.description.size() <= 500 &&
+      data.assetClass is string && data.assetClass.size() <= 150 &&
+      data.buildingSite is string && data.buildingSite.size() <= 150 &&
+      data.buildingSiteOther is string && data.buildingSiteOther.size() <= 150 &&
+      data.floor is string && data.floor.size() <= 100 &&
+      data.floorOther is string && data.floorOther.size() <= 100 &&
+      data.roomLocation is string && data.roomLocation.size() <= 150 &&
+      data.roomLocationOther is string && data.roomLocationOther.size() <= 150 &&
+      data.department is string && data.department.size() <= 150 &&
+      data.departmentOther is string && data.departmentOther.size() <= 150 &&
+      data.userCustodian is string && data.userCustodian.size() <= 150 &&
+      data.tagStatus is string && data.tagStatus.size() <= 100 &&
+      data.tagNumberAcn is string && data.tagNumberAcn.size() <= 100 &&
+      data.brandModel is string && data.brandModel.size() <= 150 &&
+      data.physicalQtyText is string && data.physicalQtyText.size() <= 30 &&
+      data.physicalQty is int && data.physicalQty >= 0 &&
+      data.found is string && data.found.size() <= 50 &&
+      data.condition is string && data.condition.size() <= 50 &&
+      data.inUse is string && data.inUse.size() <= 30 &&
+      data.countDate is string && data.countDate.size() <= 40 &&
+      data.countedBy is string && data.countedBy.size() <= 150 &&
+      data.countedByUserId is string && data.countedByUserId.size() <= 128 &&
+      data.reviewedBy is string && data.reviewedBy.size() <= 150 &&
+      data.reviewedByUserId is string && data.reviewedByUserId.size() <= 128 &&
+      data.reviewedAt is string && data.reviewedAt.size() <= 60 &&
+      data.photoRef is string && data.photoRef.size() <= 4000 &&
+      data.remarks is string && data.remarks.size() <= 2000 &&
+      data.clientExplanation is string && data.clientExplanation.size() <= 2000 &&
+      data.recordStatus is string && data.recordStatus.size() <= 80 &&
+      data.classificationStatus is string && data.classificationStatus.size() <= 200 &&
+      data.isDraft is bool &&
+      data.auditTrailSummary is string && data.auditTrailSummary.size() <= 4000 &&
+      (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 128)) &&
+      (!('fiscalYearId' in data) || (data.fiscalYearId is string && data.fiscalYearId.size() <= 60)) &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidAssetPhotoRecord(data, workspaceId) {
+      return data.keys().hasAll([
+        'photoId', 'recordKey', 'assetOrObsId', 'recordType',
+        'localPath', 'driveFileId', 'driveWebViewLink', 'driveFolderId',
+        'uploadStatus', 'errorMessage', 'retryCount',
+        'capturedBy', 'capturedByUserId', 'capturedAtIso',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'photoId', 'recordKey', 'assetOrObsId', 'recordType',
+        'localPath', 'originalLocalFilename', 'finalDriveFilename',
+        'mimeType', 'fileExtension', 'nicknameSnapshot',
+        'photoSequenceNumber', 'schemaVersion', 'dateFolderName',
+        'driveParentFolderId', 'driveDateFolderId',
+        'driveFileId', 'driveWebViewLink', 'driveFolderId',
+        'uploadStatus', 'errorMessage', 'retryCount',
+        'capturedBy', 'capturedByUserId', 'capturedAtIso', 'uploadedAtIso',
+        'clientId', 'fiscalYearId',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.photoId is string && data.photoId.size() >= 1 && data.photoId.size() <= 128 &&
+      data.recordKey is string && data.recordKey.size() >= 1 && data.recordKey.size() <= 128 &&
+      data.assetOrObsId is string && data.assetOrObsId.size() <= 128 &&
+      data.recordType is string && data.recordType.size() <= 50 &&
+      data.localPath is string && data.localPath.size() <= 1024 &&
+      (!('originalLocalFilename' in data) || (data.originalLocalFilename is string && data.originalLocalFilename.size() <= 256)) &&
+      (!('finalDriveFilename' in data) || (data.finalDriveFilename is string && data.finalDriveFilename.size() <= 256)) &&
+      (!('mimeType' in data) || (data.mimeType is string && data.mimeType.size() <= 60)) &&
+      (!('fileExtension' in data) || (data.fileExtension is string && data.fileExtension.size() <= 20)) &&
+      (!('nicknameSnapshot' in data) || (data.nicknameSnapshot is string && data.nicknameSnapshot.size() <= 60)) &&
+      (!('photoSequenceNumber' in data) || (data.photoSequenceNumber is int && data.photoSequenceNumber >= 0)) &&
+      (!('schemaVersion' in data) || (data.schemaVersion is int && data.schemaVersion >= 1)) &&
+      (!('dateFolderName' in data) || (data.dateFolderName is string && data.dateFolderName.size() <= 30)) &&
+      (!('driveParentFolderId' in data) || (data.driveParentFolderId is string && data.driveParentFolderId.size() <= 256)) &&
+      (!('driveDateFolderId' in data) || (data.driveDateFolderId is string && data.driveDateFolderId.size() <= 256)) &&
+      data.driveFileId is string && data.driveFileId.size() <= 256 &&
+      data.driveWebViewLink is string && data.driveWebViewLink.size() <= 1024 &&
+      data.driveFolderId is string && data.driveFolderId.size() <= 256 &&
+      data.uploadStatus is string && data.uploadStatus.size() <= 60 &&
+      data.errorMessage is string && data.errorMessage.size() <= 1000 &&
+      data.retryCount is int && data.retryCount >= 0 &&
+      data.capturedBy is string && data.capturedBy.size() <= 150 &&
+      data.capturedByUserId is string && data.capturedByUserId.size() <= 128 &&
+      data.capturedAtIso is string && data.capturedAtIso.size() <= 60 &&
+      (!('uploadedAtIso' in data) || (data.uploadedAtIso is string && data.uploadedAtIso.size() <= 60)) &&
+      (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 128)) &&
+      (!('fiscalYearId' in data) || (data.fiscalYearId is string && data.fiscalYearId.size() <= 60)) &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidProjectSettings(data, workspaceId) {
+      return data.keys().hasAll([
+        'projectName', 'connectedDriveEmail', 'rootDriveFolderId',
+        'photosDriveFolderId', 'reportsDriveFolderId', 'backupsDriveFolderId',
+        'masterWorkbookDriveFileId', 'masterWorkbookFileName', 'masterWorkbookVersion',
+        'lastMasterUpdateAtIso', 'lastMasterUpdateStatus', 'lastMasterUpdateError',
+        'driveConnectionStatus', 'projectStartDate', 'originalPlannedCompletionDate',
+        'approvedCompletionDate', 'workingDaysPerWeek', 'nonWorkingDatesCsv',
+        'planRevisionHistory', 'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'projectName', 'connectedDriveEmail', 'rootDriveFolderId',
+        'photosDriveFolderId', 'reportsDriveFolderId', 'backupsDriveFolderId',
+        'masterWorkbookDriveFileId', 'masterWorkbookFileName', 'masterWorkbookVersion',
+        'lastMasterUpdateAtIso', 'lastMasterUpdateStatus', 'lastMasterUpdateError',
+        'driveConnectionStatus', 'projectStartDate', 'originalPlannedCompletionDate',
+        'approvedCompletionDate', 'workingDaysPerWeek', 'nonWorkingDatesCsv',
+        'planRevisionHistory', 'activeClientId', 'activeFiscalYearId',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.projectName is string && data.projectName.size() <= 200 &&
+      data.connectedDriveEmail is string && data.connectedDriveEmail.size() <= 200 &&
+      data.rootDriveFolderId is string && data.rootDriveFolderId.size() <= 256 &&
+      data.photosDriveFolderId is string && data.photosDriveFolderId.size() <= 256 &&
+      data.reportsDriveFolderId is string && data.reportsDriveFolderId.size() <= 256 &&
+      data.backupsDriveFolderId is string && data.backupsDriveFolderId.size() <= 256 &&
+      data.masterWorkbookDriveFileId is string && data.masterWorkbookDriveFileId.size() <= 256 &&
+      data.masterWorkbookFileName is string && data.masterWorkbookFileName.size() <= 256 &&
+      data.masterWorkbookVersion is int && data.masterWorkbookVersion >= 1 &&
+      data.lastMasterUpdateAtIso is string && data.lastMasterUpdateAtIso.size() <= 60 &&
+      data.lastMasterUpdateStatus is string && data.lastMasterUpdateStatus.size() <= 100 &&
+      data.lastMasterUpdateError is string && data.lastMasterUpdateError.size() <= 1000 &&
+      data.driveConnectionStatus is string && data.driveConnectionStatus.size() <= 100 &&
+      data.projectStartDate is string && data.projectStartDate.size() <= 40 &&
+      data.originalPlannedCompletionDate is string && data.originalPlannedCompletionDate.size() <= 40 &&
+      data.approvedCompletionDate is string && data.approvedCompletionDate.size() <= 40 &&
+      data.workingDaysPerWeek is int && data.workingDaysPerWeek >= 1 && data.workingDaysPerWeek <= 7 &&
+      data.nonWorkingDatesCsv is string && data.nonWorkingDatesCsv.size() <= 2000 &&
+      data.planRevisionHistory is string && data.planRevisionHistory.size() <= 8000 &&
+      (!('activeClientId' in data) || (data.activeClientId is string && data.activeClientId.size() <= 128)) &&
+      (!('activeFiscalYearId' in data) || (data.activeFiscalYearId is string && data.activeFiscalYearId.size() <= 60)) &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCountingPlanStage(data, workspaceId) {
+      return data.keys().hasAll([
+        'stageOrder', 'stageName', 'dayRangeLabel', 'startDate', 'endDate',
+        'allocatedDays', 'originalAllocatedDays', 'targetRecordCount',
+        'assignedTeamMembers', 'dependsOnStageId', 'assetClassesIncluded',
+        'revisionCount', 'revisionNotes', 'updatedBy', 'updatedByUserId',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'stageOrder', 'stageName', 'dayRangeLabel', 'startDate', 'endDate',
+        'allocatedDays', 'originalAllocatedDays', 'targetRecordCount',
+        'assignedTeamMembers', 'dependsOnStageId', 'assetClassesIncluded',
+        'revisionCount', 'revisionNotes', 'updatedBy', 'updatedByUserId',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.stageOrder is int && data.stageOrder >= 1 &&
+      data.stageName is string && data.stageName.size() >= 1 && data.stageName.size() <= 200 &&
+      data.dayRangeLabel is string && data.dayRangeLabel.size() <= 60 &&
+      data.startDate is string && data.startDate.size() <= 40 &&
+      data.endDate is string && data.endDate.size() <= 40 &&
+      data.allocatedDays is int && data.allocatedDays >= 1 &&
+      data.originalAllocatedDays is int && data.originalAllocatedDays >= 1 &&
+      data.targetRecordCount is int && data.targetRecordCount >= 0 &&
+      data.assignedTeamMembers is string && data.assignedTeamMembers.size() <= 500 &&
+      data.dependsOnStageId is string && data.dependsOnStageId.size() <= 128 &&
+      data.assetClassesIncluded is string && data.assetClassesIncluded.size() <= 500 &&
+      data.revisionCount is int && data.revisionCount >= 0 &&
+      data.revisionNotes is string && data.revisionNotes.size() <= 3000 &&
+      data.updatedBy is string && data.updatedBy.size() <= 150 &&
+      data.updatedByUserId is string && data.updatedByUserId.size() <= 128 &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidActivityLogRecord(data, workspaceId) {
+      return data.keys().hasAll([
+        'actionType', 'targetId', 'summary', 'actorName',
+        'actorUserId', 'actorRole', 'timestampIso',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'actionType', 'targetId', 'summary', 'actorName',
+        'targetOwnerUid', 'actorUserId', 'actorRole', 'timestampIso',
+        'clientId', 'fiscalYearId',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.actionType is string && data.actionType.size() <= 100 &&
+      data.targetId is string && data.targetId.size() <= 128 &&
+      (!('targetOwnerUid' in data) || (data.targetOwnerUid is string && data.targetOwnerUid.size() <= 128)) &&
+      (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 128)) &&
+      (!('fiscalYearId' in data) || (data.fiscalYearId is string && data.fiscalYearId.size() <= 60)) &&
+      data.summary is string && data.summary.size() <= 2000 &&
+      data.actorName is string && data.actorName.size() <= 150 &&
+      data.actorUserId is string && data.actorUserId.size() <= 128 &&
+      data.actorRole is string && data.actorRole.size() <= 50 &&
+      data.timestampIso is string && data.timestampIso.size() <= 60 &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function hasRoleChangeAudit(data, workspaceId) {
+      let auditPath = /databases/$(database)/documents/users/$(workspaceId)/activity_logs/$(data.auditLogId);
+      return existsAfter(auditPath) &&
+        getAfter(auditPath).data.userId == workspaceId &&
+        getAfter(auditPath).data.actionType in ['ROLE_ASSIGNMENT', 'OWNER_BOOTSTRAP'] &&
+        getAfter(auditPath).data.targetId == data.memberUid &&
+        getAfter(auditPath).data.actorUserId == request.auth.uid;
+    }
+
+    function auditEventIsLinked(data, workspaceId, logId) {
+      return data.actionType is string && data.actionType.size() > 0 &&
+        data.targetId is string && data.targetId.size() > 0;
+    }
+
+    function isValidExportJobRecord(data, workspaceId) {
+      return data.keys().hasAll([
+        'jobType', 'status', 'versionNumber', 'driveFileId',
+        'localFilePath', 'recordCount', 'errorMessage',
+        'requestedBy', 'requestedByUserId', 'completedAtIso',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'jobType', 'status', 'versionNumber', 'driveFileId',
+        'localFilePath', 'recordCount', 'errorMessage',
+        'requestedBy', 'requestedByUserId', 'completedAtIso',
+        'clientId', 'fiscalYearId',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.jobType is string && data.jobType.size() <= 100 &&
+      data.status is string && data.status.size() <= 50 &&
+      data.versionNumber is int && data.versionNumber >= 1 &&
+      data.driveFileId is string && data.driveFileId.size() <= 256 &&
+      data.localFilePath is string && data.localFilePath.size() <= 1024 &&
+      data.recordCount is int && data.recordCount >= 0 &&
+      data.errorMessage is string && data.errorMessage.size() <= 1000 &&
+      data.requestedBy is string && data.requestedBy.size() <= 150 &&
+      data.requestedByUserId is string && data.requestedByUserId.size() <= 128 &&
+      data.completedAtIso is string && data.completedAtIso.size() <= 60 &&
+      (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 128)) &&
+      (!('fiscalYearId' in data) || (data.fiscalYearId is string && data.fiscalYearId.size() <= 60)) &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidWorkbookSchemaVersion(data, workspaceId) {
+      return data.keys().hasAll([
+        'versionNumber', 'status', 'configMode', 'sourceWorkbookName',
+        'targetWorksheetName', 'uniqueKeyFieldId', 'fieldsJson', 'changeSummary',
+        'createdByUid', 'createdByName', 'publishedByUid', 'publishedByName',
+        'createdAtIso', 'publishedAtIso', 'previousVersionId',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'versionNumber', 'status', 'configMode', 'sourceWorkbookName',
+        'targetWorksheetName', 'uniqueKeyFieldId', 'clientId', 'fiscalYearId',
+        'fieldsJson', 'changeSummary',
+        'createdByUid', 'createdByName', 'publishedByUid', 'publishedByName',
+        'createdAtIso', 'publishedAtIso', 'previousVersionId',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.versionNumber is int && data.versionNumber >= 1 &&
+      data.status is string && data.status in ['DRAFT', 'PUBLISHED', 'ARCHIVED'] &&
+      data.configMode is string && data.configMode.size() <= 80 &&
+      data.sourceWorkbookName is string && data.sourceWorkbookName.size() <= 256 &&
+      data.targetWorksheetName is string && data.targetWorksheetName.size() <= 128 &&
+      data.uniqueKeyFieldId is string && data.uniqueKeyFieldId.size() <= 128 &&
+      (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 128)) &&
+      (!('fiscalYearId' in data) || (data.fiscalYearId is string && data.fiscalYearId.size() <= 60)) &&
+      data.fieldsJson is string && data.fieldsJson.size() <= 250000 &&
+      data.changeSummary is string && data.changeSummary.size() <= 2000 &&
+      data.createdByUid is string && data.createdByUid.size() <= 128 &&
+      data.createdByName is string && data.createdByName.size() <= 150 &&
+      data.publishedByUid is string && data.publishedByUid.size() <= 128 &&
+      data.publishedByName is string && data.publishedByName.size() <= 150 &&
+      data.createdAtIso is string && data.createdAtIso.size() <= 60 &&
+      data.publishedAtIso is string && data.publishedAtIso.size() <= 60 &&
+      data.previousVersionId is string && data.previousVersionId.size() <= 128 &&
+      data.userId is string && data.userId == workspaceId &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidUserSubmissionRecord(data, ownerUid) {
+      return data.keys().hasAll([
+        'submissionId', 'submitterUid', 'submitterName', 'nicknameSnapshot',
+        'workspaceId', 'assetKey', 'assetId', 'sourceRow', 'worksheetName',
+        'schemaVersionId', 'schemaVersionNumber', 'submissionStatus',
+        'fieldValuesJson', 'fixedFieldSnapshotJson', 'photoIdsCsv',
+        'reviewNotes', 'rejectionReason', 'reviewedByUid', 'reviewedByName', 'reviewedAtIso',
+        'publishedWorkbookVersion', 'publishedAtIso', 'publishedByUid', 'publishedByName',
+        'publishedAuditLogId', 'syncErrorMessage', 'auditHistory',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'submissionId', 'submitterUid', 'submitterName', 'nicknameSnapshot',
+        'workspaceId', 'clientId', 'fiscalYearId',
+        'assetKey', 'assetId', 'sourceRow', 'worksheetName',
+        'schemaVersionId', 'schemaVersionNumber', 'submissionStatus',
+        'fieldValuesJson', 'fixedFieldSnapshotJson', 'photoIdsCsv',
+        'reviewNotes', 'rejectionReason', 'reviewedByUid', 'reviewedByName', 'reviewedAtIso',
+        'publishedWorkbookVersion', 'publishedAtIso', 'publishedByUid', 'publishedByName',
+        'publishedAuditLogId', 'syncErrorMessage', 'auditHistory',
+        'userId', 'createdAt', 'updatedAt'
+      ]) &&
+      data.submissionId is string && data.submissionId.size() >= 1 && data.submissionId.size() <= 128 &&
+      data.submitterUid is string && data.submitterUid == ownerUid &&
+      data.submitterName is string && data.submitterName.size() <= 150 &&
+      data.nicknameSnapshot is string && data.nicknameSnapshot.size() <= 60 &&
+      data.workspaceId is string && data.workspaceId.size() >= 1 && data.workspaceId.size() <= 128 &&
+      (!('clientId' in data) || (data.clientId is string && data.clientId.size() <= 128)) &&
+      (!('fiscalYearId' in data) || (data.fiscalYearId is string && data.fiscalYearId.size() <= 60)) &&
+      isTeamMember(data.workspaceId) &&
+      data.assetKey is string && data.assetKey.size() >= 1 && data.assetKey.size() <= 128 &&
+      data.assetId is string && data.assetId.size() >= 1 && data.assetId.size() <= 100 &&
+      data.sourceRow is int && data.sourceRow >= 1 &&
+      data.worksheetName is string && data.worksheetName.size() <= 128 &&
+      data.schemaVersionId is string && data.schemaVersionId.size() <= 128 &&
+      data.schemaVersionNumber is int && data.schemaVersionNumber >= 1 &&
+      data.submissionStatus is string && data.submissionStatus in [
+        'Draft',
+        'Pending Review',
+        'Changes Requested',
+        'Rejected',
+        'Approved — Awaiting Master Update',
+        'Master Update In Progress',
+        'Sync Failed',
+        'Published'
+      ] &&
+      data.fieldValuesJson is string && data.fieldValuesJson.size() <= 50000 &&
+      data.fixedFieldSnapshotJson is string && data.fixedFieldSnapshotJson.size() <= 20000 &&
+      data.photoIdsCsv is string && data.photoIdsCsv.size() <= 4000 &&
+      data.reviewNotes is string && data.reviewNotes.size() <= 2000 &&
+      data.rejectionReason is string && data.rejectionReason.size() <= 2000 &&
+      data.reviewedByUid is string && data.reviewedByUid.size() <= 128 &&
+      data.reviewedByName is string && data.reviewedByName.size() <= 150 &&
+      data.reviewedAtIso is string && data.reviewedAtIso.size() <= 60 &&
+      data.publishedWorkbookVersion is int && data.publishedWorkbookVersion >= 0 &&
+      data.publishedAtIso is string && data.publishedAtIso.size() <= 60 &&
+      data.publishedByUid is string && data.publishedByUid.size() <= 128 &&
+      data.publishedByName is string && data.publishedByName.size() <= 150 &&
+      data.publishedAuditLogId is string && data.publishedAuditLogId.size() <= 128 &&
+      data.syncErrorMessage is string && data.syncErrorMessage.size() <= 1000 &&
+      data.auditHistory is string && data.auditHistory.size() <= 8000 &&
+      data.userId is string && data.userId == ownerUid &&
+      data.createdAt is timestamp && data.createdAt <= request.time &&
+      data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId}/system_config/{configId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(configId) &&
+                       !exists(/databases/$(database)/documents/users/$(userId)/system_config/ownership) &&
+                       incoming().ownerUid == request.auth.uid &&
+                       incoming().userId == userId;
+      allow update: if isInitialOwnerForWorkspace(userId) && isValidId(configId) &&
+                       incoming().ownerUid == existing().ownerUid;
+      allow delete: if false;
+    }
+
+    match /users/{userId}/user_profile/{profileId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdminForWorkspace(userId)) && isValidId(profileId);
+      allow list: if isSignedIn() && (request.auth.uid == userId && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(profileId) &&
+                       isNotDeletedIdentity(userId) &&
+                       (isValidSelfUserProfile(incoming(), userId) ||
+                        (isAdminForWorkspace(userId) && isValidUserProfile(incoming(), userId)));
+      allow update: if isSignedIn() && isNotDeletedIdentity(userId) &&
+                       (isValidSelfUserProfileUpdate(incoming(), existing(), userId) ||
+                        (isAdminForWorkspace(userId) && isValidUserProfile(incoming(), userId))) &&
+                       (request.auth.uid == userId || isAdminForWorkspace(userId)) && isValidId(profileId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'fullName', 'nickname', 'email', 'role', 'accountStatus', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdminForWorkspace(userId)) && isValidId(profileId);
+    }
+
+    match /users/{userId}/role_assignments/{memberUid} {
+      allow get: if isSignedIn() && isValidId(memberUid) &&
+                   (request.auth.uid == memberUid || request.auth.uid == userId);
+      allow list: if isTeamMember(userId) && resource.data.userId == userId;
+      allow create: if isAdminForWorkspace(userId) &&
+               request.auth.uid == incoming().assignedByUid &&
+               incoming().memberUid == memberUid &&
+               isValidId(memberUid) &&
+               isValidRoleAssignment(incoming(), userId) &&
+               hasRoleChangeAudit(incoming(), userId);
+      allow update: if isAdminForWorkspace(userId) && isValidId(memberUid) && isValidRoleAssignment(incoming(), userId) &&
+               request.auth.uid == incoming().assignedByUid &&
+               incoming().memberUid == existing().memberUid &&
+               incoming().userId == existing().userId &&
+               incoming().createdAt == existing().createdAt &&
+               incoming().auditLogId != existing().auditLogId &&
+               (existing().get('isInitialOwner', false) == false ||
+                (incoming().role in ['Owner', 'Admin'] && incoming().get('accountStatus', 'Active') == 'Active')) &&
+               hasRoleChangeAudit(incoming(), userId);
+      allow delete: if isInitialOwnerForWorkspace(userId) && isValidId(memberUid) &&
+                       resource.data.get('isInitialOwner', false) == false;
+    }
+
+    match /users/{userId}/clients/{clientId} {
+      allow get, list: if isTeamMember(userId);
+      allow create, update: if isAdminForWorkspace(userId) && isValidId(clientId) &&
+                               incoming().userId == userId && incoming().clientId == clientId;
+      allow delete: if isAdminForWorkspace(userId) && isValidId(clientId);
+    }
+
+    match /users/{userId}/fiscal_years/{fiscalYearId} {
+      allow get, list: if isTeamMember(userId);
+      allow create, update, delete: if isAdminForWorkspace(userId) && isValidId(fiscalYearId);
+    }
+
+    match /users/{userId}/client_assignments/{assignmentId} {
+      allow get, list: if isTeamMember(userId) || (isSignedIn() && resource.data.memberUid == request.auth.uid);
+      allow create, update, delete: if isAdminForWorkspace(userId) && isValidId(assignmentId);
+    }
+
+    match /users/{userId}/access_requests/{requestId} {
+      allow get, list: if isTeamMember(userId) || (isSignedIn() && resource.data.requesterUid == request.auth.uid);
+      allow create: if isSignedIn() && isNotDeletedIdentity(userId) && isValidId(requestId) &&
+                       incoming().requesterUid == request.auth.uid && incoming().status == 'Pending';
+      allow update: if isAdminForWorkspace(userId) && isValidId(requestId);
+      allow delete: if isAdminForWorkspace(userId) && isValidId(requestId);
+    }
+
+    match /users/{userId}/master_workbook_state/{stateId} {
+      allow get, list: if isTeamMember(userId);
+      allow create, update: if (isAdminForWorkspace(userId) || canPublishAndSync(userId)) && isValidId(stateId);
+      allow delete: if isAdminForWorkspace(userId) && isValidId(stateId);
+    }
+
+    match /users/{userId}/master_sync_jobs/{jobId} {
+      allow get, list: if isTeamMember(userId);
+      allow create, update: if (isAdminForWorkspace(userId) || canPublishAndSync(userId)) && isValidId(jobId);
+      allow delete: if isAdminForWorkspace(userId) && isValidId(jobId);
+    }
+
+    match /users/{userId}/deletion_jobs/{jobId} {
+      allow get, list: if isAdminForWorkspace(userId);
+      allow create, update, delete: if isAdminForWorkspace(userId) && isValidId(jobId);
+    }
+
+    match /users/{userId}/deleted_identities/{deletedUid} {
+      allow get: if isSignedIn() && (request.auth.uid == deletedUid || request.auth.uid == userId);
+      allow list: if isAdminForWorkspace(userId);
+      allow create, update: if isAdminForWorkspace(userId) && isValidId(deletedUid);
+      allow delete: if false;
+    }
+
+    match /users/{userId}/deletion_audit_events/{eventId} {
+      allow get, list: if isAdminForWorkspace(userId);
+      allow create: if isAdminForWorkspace(userId) && isValidId(eventId);
+      allow update, delete: if false;
+    }
+
+    match /users/{userId}/migration_backups/{backupId} {
+      allow get, list, create, update, delete: if isAdminForWorkspace(userId) && isValidId(backupId);
+    }
+
+    match /users/{userId}/far_assets/{assetKey} {
+      allow get: if canAccessClientScope(userId, resource.data) && isValidId(assetKey);
+      allow list: if isTeamMember(userId) && resource.data.userId == userId;
+      allow create: if isAdminForWorkspace(userId) && isValidId(assetKey) && isValidFARAsset(incoming(), userId);
+      allow update: if isAdminForWorkspace(userId) && isValidFARAsset(incoming(), userId) &&
+                       isValidId(assetKey) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().assetId == existing().assetId &&
+                       incoming().sourceRow == existing().sourceRow &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'importBatchId', 'clientId', 'fiscalYearId', 'department', 'location',
+                         'matchingKeyValue', 'sourceWorkbookName', 'sourceWorksheetName',
+                         'rawRowByHeaderJson', 'mappedValuesByFieldIdJson', 'updatedAt'
+                       ]);
+      allow delete: if isAdminForWorkspace(userId) && isValidId(assetKey);
+    }
+
+    match /users/{userId}/counting_records/{assetKey} {
+      allow get: if canAccessClientScope(userId, resource.data) && isValidId(assetKey);
+      allow list: if isTeamMember(userId) && resource.data.userId == userId;
+      allow create: if canAccessClientScope(userId, incoming()) && isValidId(assetKey) && isValidCountingRecord(incoming(), userId) &&
+               (canReviewWorkspace(userId) || !hasReviewerMetadata(incoming()));
+      allow update: if canAccessClientScope(userId, incoming()) && isValidCountingRecord(incoming(), userId) &&
+                       isValidId(assetKey) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().assetKey == existing().assetKey &&
+                       incoming().assetId == existing().assetId &&
+                       incoming().sourceRow == existing().sourceRow &&
+                       (reviewerMetadataUnchanged(incoming(), existing()) || canReviewWorkspace(userId)) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'found', 'countDate', 'countedBy', 'countedByUserId',
+                         'buildingSite', 'buildingSiteOther',
+                         'floor', 'floorOther', 'roomLocation', 'roomLocationOther',
+                         'department', 'departmentOther', 'userCustodian', 'tagStatus',
+                         'tagNumberAcn', 'brandModel', 'physicalQtyText', 'condition',
+                         'inUse', 'photoRef', 'remarks', 'qtyDiffText', 'result',
+                         'countingStatus', 'applicableExceptions',
+                         'reviewedBy', 'reviewedByUserId', 'reviewerRequiredFlag',
+                         'reviewedAt', 'reviewStatus', 'clientExplanation', 'isDraft',
+                         'auditTrailSummary', 'clientId', 'fiscalYearId', 'dynamicFieldValuesJson',
+                         'updatedAt'
+                       ]);
+      allow delete: if isAdminForWorkspace(userId) && isValidId(assetKey);
+    }
+
+    match /users/{userId}/master_data/{configId} {
+      allow get: if isTeamMember(userId) && isValidId(configId);
+      allow list: if isTeamMember(userId) && resource.data.userId == userId;
+      allow create: if isAdminForWorkspace(userId) && isValidId(configId) && isValidMasterDataConfig(incoming(), userId);
+      allow update: if isAdminForWorkspace(userId) && isValidMasterDataConfig(incoming(), userId) &&
+                       isValidId(configId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'auditors', 'sites', 'floors', 'rooms', 'departments',
+                         'clientId', 'fiscalYearId', 'updatedAt'
+                       ]);
+      allow delete: if isAdminForWorkspace(userId) && isValidId(configId);
+    }
+
+    match /users/{userId}/exceptions/{exceptionId} {
+      allow get: if isTeamMember(userId) && isValidId(exceptionId);
+      allow list: if isTeamMember(userId) && resource.data.userId == userId;
+      allow create: if isTeamMember(userId) && isValidId(exceptionId) && isValidExceptionRecord(incoming(), userId);
+      allow update: if isTeamMember(userId) && isValidExceptionRecord(incoming(), userId) &&
+                       isValidId(exceptionId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().assetKey == existing().assetKey &&
+                       incoming().assetId == existing().assetId &&
+                       incoming().sourceRow == existing().sourceRow &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'exceptionType', 'description', 'status', 'followUpNotes',
+                         'resolutionHistory', 'clientId', 'fiscalYearId', 'updatedAt'
+                       ]);
+      allow delete: if isAdminForWorkspace(userId) && isValidId(exceptionId);
+    }
+
+    match /users/{userId}/found_not_in_far/{recordId} {
+      allow get: if isTeamMember(userId) && isValidId(recordId);
+      allow list: if isTeamMember(userId) && resource.data.userId == userId;
+      allow create: if isTeamMember(userId) && isValidId(recordId) && isValidFoundNotInFarRecord(incoming(), userId) &&
+                       (canReviewWorkspace(userId) ||
+                        (incoming().reviewedBy == '' && incoming().reviewedByUserId == '' && incoming().reviewedAt == ''));
+      allow update: if isTeamMember(userId) && isValidFoundNotInFarRecord(incoming(), userId) &&
+                       isValidId(recordId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().tempId == existing().tempId &&
+                       ((incoming().reviewedBy == existing().reviewedBy &&
+                         incoming().reviewedByUserId == existing().reviewedByUserId &&
+                         incoming().reviewedAt == existing().reviewedAt) || canReviewWorkspace(userId));
+      allow delete: if isAdminForWorkspace(userId) && isValidId(recordId);
+    }
+
+    match /users/{userId}/asset_photos/{photoId} {
+      allow get: if isTeamMember(userId) && isValidId(photoId);
+      allow list: if isTeamMember(userId) && resource.data.userId == userId;
+      allow create: if isTeamMember(userId) && isValidId(photoId) && isValidAssetPhotoRecord(incoming(), userId);
+      allow update: if isTeamMember(userId) && isValidAssetPhotoRecord(incoming(), userId) &&
+                       isValidId(photoId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt;
+      allow delete: if isAdminForWorkspace(userId) && isValidId(photoId);
+    }
+
+    match /users/{userId}/project_settings/{settingId} {
+      allow get: if isTeamMember(userId) && isValidId(settingId);
+      allow list: if isTeamMember(userId) && resource.data.userId == userId;
+      allow create: if isAdminForWorkspace(userId) && isValidId(settingId) && isValidProjectSettings(incoming(), userId);
+      allow update: if (
+                       isAdminForWorkspace(userId) ||
+                       (canSyncDrive(userId) && incoming().diff(existing()).affectedKeys().hasOnly([
+                         'connectedDriveEmail', 'rootDriveFolderId', 'photosDriveFolderId',
+                         'reportsDriveFolderId', 'backupsDriveFolderId',
+                         'driveConnectionStatus', 'updatedAt'
+                       ])) ||
+                       (canPublishAndSync(userId) &&
+                        incoming().diff(existing()).affectedKeys().hasOnly([
+                          'masterWorkbookDriveFileId', 'masterWorkbookVersion',
+                          'lastMasterUpdateAtIso', 'lastMasterUpdateStatus',
+                          'lastMasterUpdateError', 'planRevisionHistory', 'updatedAt'
+                        ]) &&
+                        (
+                          (
+                            incoming().masterWorkbookVersion == existing().masterWorkbookVersion + 1 &&
+                            incoming().masterWorkbookDriveFileId.size() > 0 &&
+                            incoming().lastMasterUpdateAtIso.size() > 0 &&
+                            incoming().lastMasterUpdateError == ''
+                          ) ||
+                          (
+                            incoming().masterWorkbookVersion == existing().masterWorkbookVersion &&
+                            incoming().masterWorkbookDriveFileId == existing().masterWorkbookDriveFileId &&
+                            incoming().lastMasterUpdateStatus.matches('^Failed.*') &&
+                            incoming().lastMasterUpdateError.size() > 0
+                          )
+                        ))
+                     ) && isValidProjectSettings(incoming(), userId) &&
+                       isValidId(settingId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt;
+      allow delete: if isAdminForWorkspace(userId) && isValidId(settingId);
+    }
+
+    match /users/{userId}/counting_plan_stages/{stageId} {
+      allow get: if isTeamMember(userId) && isValidId(stageId);
+      allow list: if isTeamMember(userId) && resource.data.userId == userId;
+      allow create: if isAdminForWorkspace(userId) && isValidId(stageId) && isValidCountingPlanStage(incoming(), userId);
+      allow update: if isAdminForWorkspace(userId) && isValidCountingPlanStage(incoming(), userId) &&
+                       isValidId(stageId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt;
+      allow delete: if isAdminForWorkspace(userId) && isValidId(stageId);
+    }
+
+    match /users/{userId}/activity_logs/{logId} {
+      allow get: if isTeamMember(userId) && isValidId(logId);
+      allow list: if isTeamMember(userId) && resource.data.userId == userId;
+      allow create: if isTeamMember(userId);
+      allow update: if false; // Activity logs are append-only
+      allow delete: if isAdminForWorkspace(userId) && isValidId(logId);
+    }
+
+    match /users/{userId}/export_jobs/{jobId} {
+      allow get: if isTeamMember(userId) && isValidId(jobId);
+      allow list: if isTeamMember(userId) && resource.data.userId == userId;
+      allow create: if isAdminForWorkspace(userId) && isValidId(jobId) && isValidExportJobRecord(incoming(), userId);
+      allow update: if isAdminForWorkspace(userId) && isValidExportJobRecord(incoming(), userId) &&
+                       isValidId(jobId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt;
+      allow delete: if isAdminForWorkspace(userId) && isValidId(jobId);
+    }
+
+    match /users/{userId}/schema_versions/{versionId} {
+      allow get: if isTeamMember(userId) && isValidId(versionId);
+      allow list: if isTeamMember(userId) && resource.data.userId == userId;
+      allow create: if isAdminForWorkspace(userId) && isValidId(versionId) && isValidWorkbookSchemaVersion(incoming(), userId);
+      allow update: if isAdminForWorkspace(userId) && isValidId(versionId) && isValidWorkbookSchemaVersion(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt;
+      allow delete: if isAdminForWorkspace(userId) && isValidId(versionId);
+    }
+
+    match /users/{userId}/submissions/{submissionId} {
+      allow get: if isSignedIn() && isValidId(submissionId) && (
+        request.auth.uid == userId ||
+        canReviewWorkspace(resource.data.workspaceId)
+      );
+      allow list: if isSignedIn() && (
+        (request.auth.uid == userId && resource.data.userId == request.auth.uid) ||
+        canReviewWorkspace(resource.data.workspaceId)
+      );
+      allow create: if isSignedIn() &&
+                       request.auth.uid == userId &&
+                       isValidId(submissionId) &&
+                       isValidUserSubmissionRecord(incoming(), userId) &&
+                       incoming().submitterUid == request.auth.uid &&
+                       incoming().submissionStatus in ['Draft', 'Pending Review'] &&
+                       incoming().reviewedByUid == '' &&
+                       incoming().publishedWorkbookVersion == 0 &&
+                       incoming().publishedAtIso == '' &&
+                       incoming().publishedAuditLogId == '';
+      allow update: if isSignedIn() &&
+                       isValidId(submissionId) &&
+                       isValidUserSubmissionRecord(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().submitterUid == existing().submitterUid &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         (
+                           request.auth.uid == userId &&
+                           existing().submissionStatus in ['Draft', 'Pending Review', 'Changes Requested'] &&
+                           incoming().submissionStatus in ['Draft', 'Pending Review', 'Changes Requested'] &&
+                           incoming().workspaceId == existing().workspaceId &&
+                           incoming().assetKey == existing().assetKey &&
+                           incoming().assetId == existing().assetId &&
+                           incoming().sourceRow == existing().sourceRow &&
+                           incoming().reviewedByUid == existing().reviewedByUid &&
+                           incoming().reviewedByName == existing().reviewedByName &&
+                           incoming().reviewedAtIso == existing().reviewedAtIso &&
+                           incoming().publishedWorkbookVersion == existing().publishedWorkbookVersion &&
+                           incoming().publishedAtIso == existing().publishedAtIso &&
+                           incoming().publishedByUid == existing().publishedByUid &&
+                           incoming().publishedByName == existing().publishedByName &&
+                           incoming().publishedAuditLogId == existing().publishedAuditLogId
+                         ) ||
+                         (
+                           canReviewWorkspace(existing().workspaceId) &&
+                           existing().submissionStatus in ['Pending Review', 'Changes Requested', 'Sync Failed'] &&
+                           incoming().submissionStatus in ['Approved — Awaiting Master Update', 'Changes Requested', 'Rejected'] &&
+                           submissionContentUnchanged(incoming(), existing()) &&
+                           incoming().reviewedByUid == request.auth.uid &&
+                           incoming().reviewedByName.size() > 0 &&
+                           incoming().reviewedAtIso.size() > 0 &&
+                           incoming().publishedWorkbookVersion == existing().publishedWorkbookVersion &&
+                           incoming().publishedAtIso == existing().publishedAtIso &&
+                           incoming().publishedByUid == existing().publishedByUid &&
+                           incoming().publishedByName == existing().publishedByName &&
+                           incoming().publishedAuditLogId == existing().publishedAuditLogId
+                         ) ||
+                         (
+                           canPublishToMaster(existing().workspaceId) &&
+                           submissionContentUnchanged(incoming(), existing()) &&
+                           existing().submissionStatus in ['Approved — Awaiting Master Update', 'Sync Failed'] &&
+                           incoming().submissionStatus == 'Master Update In Progress' &&
+                           incoming().reviewedByUid == existing().reviewedByUid &&
+                           incoming().reviewedByName == existing().reviewedByName &&
+                           incoming().reviewedAtIso == existing().reviewedAtIso &&
+                           incoming().publishedWorkbookVersion == existing().publishedWorkbookVersion &&
+                           incoming().publishedAtIso == existing().publishedAtIso &&
+                           incoming().publishedByUid == existing().publishedByUid &&
+                           incoming().publishedByName == existing().publishedByName &&
+                           incoming().publishedAuditLogId == existing().publishedAuditLogId
+                         ) ||
+                         (
+                           canPublishToMaster(existing().workspaceId) &&
+                           submissionContentUnchanged(incoming(), existing()) &&
+                           existing().submissionStatus == 'Master Update In Progress' &&
+                           incoming().submissionStatus == 'Sync Failed' &&
+                           incoming().reviewedByUid == existing().reviewedByUid &&
+                           incoming().reviewedByName == existing().reviewedByName &&
+                           incoming().reviewedAtIso == existing().reviewedAtIso &&
+                           incoming().publishedWorkbookVersion == existing().publishedWorkbookVersion &&
+                           incoming().publishedAtIso == existing().publishedAtIso &&
+                           incoming().publishedAuditLogId == existing().publishedAuditLogId
+                         ) ||
+                         (
+                           canPublishToMaster(existing().workspaceId) &&
+                           submissionContentUnchanged(incoming(), existing()) &&
+                           existing().submissionStatus == 'Master Update In Progress' &&
+                           incoming().submissionStatus == 'Published' &&
+                           incoming().publishedWorkbookVersion > existing().publishedWorkbookVersion &&
+                           incoming().publishedWorkbookVersion == get(/databases/$(database)/documents/users/$(existing().workspaceId)/project_settings/main).data.masterWorkbookVersion &&
+                           incoming().publishedByUid == request.auth.uid &&
+                           incoming().publishedByName.size() > 0 &&
+                           incoming().publishedAtIso.size() > 0 &&
+                           submissionPublicationAuditMatches(incoming(), existing().workspaceId)
+                         )
+                       );
+      allow delete: if isAdminForWorkspace(resource.data.workspaceId) && isValidId(submissionId);
+    }
+
+    match /users/{userId}/daily_batches/{batchId} {
+      allow get: if isTeamMember(userId) && isValidId(batchId);
+      allow list: if isTeamMember(userId);
+      allow create: if isSignedIn() && isTeamMember(userId) && request.auth.uid == incoming().submitterUid &&
+                       incoming().status in ['Draft / In Progress', 'Submitted / Pending Review'] &&
+                       incoming().reviewedByUid == '' && incoming().publishedByUid == '' &&
+                       incoming().publishedMasterVersion == 0 && incoming().publicationAuditLogId == '' &&
+                       isValidId(batchId) && isValidDailyBatchSubmission(incoming(), userId);
+      allow update: if isSignedIn() && isValidId(batchId) &&
+                       (
+                         (dailyBatchSubmitterEdit(incoming(), existing()) && isValidDailyBatchSubmission(incoming(), userId)) ||
+                         (dailyBatchReviewTransition(incoming(), existing(), userId) && isValidDailyBatchSubmission(incoming(), userId)) ||
+                         (dailyBatchPublishFailure(incoming(), existing(), userId) && isValidDailyBatchSubmission(incoming(), userId)) ||
+                         dailyBatchPublishSuccess(incoming(), existing(), userId) ||
+                         (isAdminForWorkspace(userId) && isValidDailyBatchSubmission(incoming(), userId))
+                       );
+      allow delete: if isAdminForWorkspace(userId) && isValidId(batchId);
+    }
+
+    match /users/{userId}/daily_batches/{batchId}/version_chunks/{chunkId} {
+      allow get, list: if isTeamMember(userId);
+      allow create, update: if isTeamMember(userId) && isValidId(chunkId);
+      allow delete: if isAdminForWorkspace(userId) && isValidId(chunkId);
+    }
+
+    match /users/{userId}/review_requests/{requestId} {
+      allow get: if isTeamMember(userId) && isValidId(requestId);
+      allow list: if isTeamMember(userId);
+      allow create: if isSignedIn() && isTeamMember(userId) &&
+                       incoming().userId == request.auth.uid && isValidId(requestId);
+      allow update: if canReviewWorkspace(userId) && isValidId(requestId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().batchId == existing().batchId &&
+                       incoming().requestedAtIso == existing().requestedAtIso &&
+                       incoming().reviewedByUid == request.auth.uid &&
+                       incoming().reviewedByName is string && incoming().reviewedByName.size() > 0 &&
+                       incoming().requestStatus in ['Under Review', 'Reviewed', 'Closed'];
+      allow delete: if isAdminForWorkspace(userId) && isValidId(requestId);
+    }
+
+    match /users/{userId}/notifications/{notificationId} {
+      allow list: if isTeamMember(userId);
+      allow get: if isTeamMember(userId) && isValidId(notificationId);
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (
+        (exists(/databases/$(database)/documents/users/$(userId)/notifications/$(notificationId)) &&
+         get(/databases/$(database)/documents/users/$(userId)/notifications/$(notificationId)).data.userId == request.auth.uid) ||
+        isAdminForWorkspace(userId)
+      );
+    }
+
+    match /users/{userId}/column_mapping/{mappingId} {
+      allow get, list: if isTeamMember(userId) && isValidId(mappingId);
+      allow create, update: if isAdminForWorkspace(userId) && isValidId(mappingId);
+      allow delete: if isAdminForWorkspace(userId) && isValidId(mappingId);
+    }
+  }
+}

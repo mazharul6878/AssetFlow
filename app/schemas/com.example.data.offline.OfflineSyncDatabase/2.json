@@ -1,0 +1,307 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "9fcac86ad4b0e125780531b05eb75858",
+    "entities": [
+      {
+        "tableName": "offline_queued_records",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`recordKey` TEXT NOT NULL, `recordType` TEXT NOT NULL, `assetId` TEXT NOT NULL, `sourceRow` INTEGER NOT NULL, `clientId` TEXT NOT NULL, `fiscalYearId` TEXT NOT NULL, `payloadJson` TEXT NOT NULL, `markAsReviewed` INTEGER NOT NULL, `explicitDateEdit` INTEGER NOT NULL, `baseUpdatedAtMillis` INTEGER NOT NULL, `syncStatus` TEXT NOT NULL, `errorMessage` TEXT NOT NULL, `retryCount` INTEGER NOT NULL, `userId` TEXT NOT NULL, `userDisplayName` TEXT NOT NULL, `queuedAtMillis` INTEGER NOT NULL, `lastSyncedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`recordKey`))",
+        "fields": [
+          {
+            "fieldPath": "recordKey",
+            "columnName": "recordKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordType",
+            "columnName": "recordType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assetId",
+            "columnName": "assetId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceRow",
+            "columnName": "sourceRow",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clientId",
+            "columnName": "clientId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fiscalYearId",
+            "columnName": "fiscalYearId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadJson",
+            "columnName": "payloadJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "markAsReviewed",
+            "columnName": "markAsReviewed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "explicitDateEdit",
+            "columnName": "explicitDateEdit",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "baseUpdatedAtMillis",
+            "columnName": "baseUpdatedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "syncStatus",
+            "columnName": "syncStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "errorMessage",
+            "columnName": "errorMessage",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "retryCount",
+            "columnName": "retryCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "userId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userDisplayName",
+            "columnName": "userDisplayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "queuedAtMillis",
+            "columnName": "queuedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSyncedAtMillis",
+            "columnName": "lastSyncedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "recordKey"
+          ]
+        }
+      },
+      {
+        "tableName": "offline_photo_queue",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`photoId` TEXT NOT NULL, `recordKey` TEXT NOT NULL, `assetOrObsId` TEXT NOT NULL, `recordType` TEXT NOT NULL, `clientId` TEXT NOT NULL, `fiscalYearId` TEXT NOT NULL, `localFilePath` TEXT NOT NULL, `originalLocalFilename` TEXT NOT NULL, `finalDriveFilename` TEXT NOT NULL, `mimeType` TEXT NOT NULL, `fileExtension` TEXT NOT NULL, `nicknameSnapshot` TEXT NOT NULL, `photoSequenceNumber` INTEGER NOT NULL, `schemaVersion` INTEGER NOT NULL, `dateFolderName` TEXT NOT NULL, `driveFolderId` TEXT NOT NULL, `driveDateFolderId` TEXT NOT NULL, `driveFileId` TEXT NOT NULL, `driveWebViewLink` TEXT NOT NULL, `uploadStatus` TEXT NOT NULL, `errorMessage` TEXT NOT NULL, `retryCount` INTEGER NOT NULL, `capturedBy` TEXT NOT NULL, `capturedByUserId` TEXT NOT NULL, `capturedAtIso` TEXT NOT NULL, `uploadedAtIso` TEXT NOT NULL, `queuedAtMillis` INTEGER NOT NULL, `lastSyncedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`photoId`))",
+        "fields": [
+          {
+            "fieldPath": "photoId",
+            "columnName": "photoId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordKey",
+            "columnName": "recordKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assetOrObsId",
+            "columnName": "assetOrObsId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordType",
+            "columnName": "recordType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "clientId",
+            "columnName": "clientId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fiscalYearId",
+            "columnName": "fiscalYearId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localFilePath",
+            "columnName": "localFilePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "originalLocalFilename",
+            "columnName": "originalLocalFilename",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finalDriveFilename",
+            "columnName": "finalDriveFilename",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mimeType",
+            "columnName": "mimeType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileExtension",
+            "columnName": "fileExtension",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nicknameSnapshot",
+            "columnName": "nicknameSnapshot",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "photoSequenceNumber",
+            "columnName": "photoSequenceNumber",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "schemaVersion",
+            "columnName": "schemaVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateFolderName",
+            "columnName": "dateFolderName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "driveFolderId",
+            "columnName": "driveFolderId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "driveDateFolderId",
+            "columnName": "driveDateFolderId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "driveFileId",
+            "columnName": "driveFileId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "driveWebViewLink",
+            "columnName": "driveWebViewLink",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uploadStatus",
+            "columnName": "uploadStatus",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "errorMessage",
+            "columnName": "errorMessage",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "retryCount",
+            "columnName": "retryCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "capturedBy",
+            "columnName": "capturedBy",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "capturedByUserId",
+            "columnName": "capturedByUserId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "capturedAtIso",
+            "columnName": "capturedAtIso",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uploadedAtIso",
+            "columnName": "uploadedAtIso",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "queuedAtMillis",
+            "columnName": "queuedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSyncedAtMillis",
+            "columnName": "lastSyncedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "photoId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9fcac86ad4b0e125780531b05eb75858')"
+    ]
+  }
+}

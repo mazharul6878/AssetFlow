@@ -1,0 +1,238 @@
+{
+  "entities": {
+    "SystemOwnershipConfig": {
+      "title": "SystemOwnershipConfig",
+      "description": "One-time immutable Owner bootstrap configuration.",
+      "type": "object",
+      "properties": {
+        "ownerUid": { "type": "string" },
+        "ownerEmail": { "type": "string" },
+        "orgId": { "type": "string" },
+        "bootstrappedAtIso": { "type": "string" },
+        "allowSecondaryAdminsToManageAdmins": { "type": "boolean" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerUid", "ownerEmail", "orgId", "bootstrappedAtIso", "userId"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile with editable displayName, nickname, accountStatus, and role.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "fullName": { "type": "string" },
+        "nickname": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "accountStatus": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["displayName", "email", "role", "userId", "createdAt", "updatedAt"]
+    },
+    "RoleAssignment": {
+      "title": "RoleAssignment",
+      "description": "Owner/Admin-managed role assignment (Owner, Admin, Reviewer, Auditor).",
+      "type": "object",
+      "properties": {
+        "memberUid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string" },
+        "isInitialOwner": { "type": "boolean" },
+        "accountStatus": { "type": "string" },
+        "assignedByUid": { "type": "string" },
+        "assignedByName": { "type": "string" },
+        "lastActiveAtIso": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["memberUid", "email", "displayName", "role", "assignedByUid", "assignedByName", "lastActiveAtIso", "userId", "createdAt", "updatedAt"]
+    },
+    "ClientRecord": {
+      "title": "ClientRecord",
+      "description": "Multi-client audit engagement entity with fiscal years and per-client Google Drive folders.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientCode": { "type": "string" },
+        "status": { "type": "string" },
+        "activeFiscalYearId": { "type": "string" },
+        "availableFiscalYearsCsv": { "type": "string" },
+        "driveRootFolderId": { "type": "string" },
+        "driveImageEvidenceFolderId": { "type": "string" },
+        "driveMasterFileFolderId": { "type": "string" },
+        "driveDailySheetsFolderId": { "type": "string" },
+        "masterWorkbookDriveFileId": { "type": "string" },
+        "masterWorkbookFileName": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["clientId", "clientName", "status", "userId"]
+    },
+    "ClientAssignmentRecord": {
+      "title": "ClientAssignmentRecord",
+      "description": "Explicit assignment of an Auditor to a Client.",
+      "type": "object",
+      "properties": {
+        "assignmentId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "memberUid": { "type": "string" },
+        "memberEmail": { "type": "string" },
+        "memberDisplayName": { "type": "string" },
+        "assignedStatus": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["assignmentId", "clientId", "memberUid", "assignedStatus", "userId"]
+    },
+    "AccessRequestRecord": {
+      "title": "AccessRequestRecord",
+      "description": "Auditor request for assignment to a Client.",
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string" },
+        "requesterUid": { "type": "string" },
+        "requesterEmail": { "type": "string" },
+        "requesterName": { "type": "string" },
+        "targetClientId": { "type": "string" },
+        "targetClientName": { "type": "string" },
+        "status": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["requestId", "requesterUid", "targetClientId", "status", "userId"]
+    },
+    "FARAsset": {
+      "title": "FARAsset",
+      "description": "Structured Asset Register record imported from the client's Excel workbook into Firebase.",
+      "type": "object",
+      "properties": {
+        "sl": { "type": "integer" },
+        "assetId": { "type": "string" },
+        "sourceRow": { "type": "integer" },
+        "assetDescription": { "type": "string" },
+        "assetClass": { "type": "string" },
+        "capitalizedOn": { "type": "string" },
+        "costTk": { "type": "number" },
+        "nbvTk": { "type": "number" },
+        "farQty": { "type": "integer" },
+        "farQtyPresent": { "type": "boolean" },
+        "method": { "type": "string" },
+        "sheetOrigin": { "type": "string" },
+        "importBatchId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "fiscalYearId": { "type": "string" },
+        "rawRowByHeaderJson": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sl", "assetId", "sourceRow", "assetDescription", "assetClass", "capitalizedOn", "costTk", "nbvTk", "farQty", "farQtyPresent", "method", "sheetOrigin", "importBatchId", "userId", "createdAt", "updatedAt"]
+    },
+    "CountingRecord": {
+      "title": "CountingRecord",
+      "description": "Physical counting & verification record linked to FARAsset.",
+      "type": "object",
+      "properties": {
+        "assetKey": { "type": "string" },
+        "assetId": { "type": "string" },
+        "sourceRow": { "type": "integer" },
+        "clientId": { "type": "string" },
+        "fiscalYearId": { "type": "string" },
+        "found": { "type": "string" },
+        "countDate": { "type": "string" },
+        "countedBy": { "type": "string" },
+        "countedByUserId": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["assetKey", "assetId", "sourceRow", "found", "countDate", "countedBy", "countedByUserId", "userId", "createdAt", "updatedAt"]
+    },
+    "AssetPhotoRecord": {
+      "title": "AssetPhotoRecord",
+      "description": "Google Drive and local asset photo metadata (zero Firebase Storage usage).",
+      "type": "object",
+      "properties": {
+        "photoId": { "type": "string" },
+        "recordKey": { "type": "string" },
+        "assetOrObsId": { "type": "string" },
+        "recordType": { "type": "string" },
+        "localPath": { "type": "string" },
+        "driveFileId": { "type": "string" },
+        "driveWebViewLink": { "type": "string" },
+        "driveFolderId": { "type": "string" },
+        "uploadStatus": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["photoId", "recordKey", "assetOrObsId", "recordType", "localPath", "driveFileId", "driveWebViewLink", "driveFolderId", "uploadStatus", "userId"]
+    },
+    "MasterWorkbookSyncMetadata": {
+      "title": "MasterWorkbookSyncMetadata",
+      "description": "Revision, MD5 checksum, lease lock, and idempotency ledger for the persistent Master Input Excel workbook on Google Drive.",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "fiscalYearId": { "type": "string" },
+        "masterDriveFileId": { "type": "string" },
+        "masterFileName": { "type": "string" },
+        "lastKnownDriveRevisionId": { "type": "string" },
+        "lastKnownMd5Checksum": { "type": "string" },
+        "masterWorkbookVersion": { "type": "integer" },
+        "lastSyncStatus": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["clientId", "fiscalYearId", "masterDriveFileId", "userId"]
+    },
+    "DeletionJobRecord": {
+      "title": "DeletionJobRecord",
+      "description": "Durable state machine record for permanent Client or User deletion.",
+      "type": "object",
+      "properties": {
+        "jobId": { "type": "string" },
+        "jobType": { "type": "string" },
+        "targetId": { "type": "string" },
+        "status": { "type": "string" },
+        "requestedByUid": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["jobId", "jobType", "targetId", "status", "requestedByUid", "userId"]
+    },
+    "ProjectSettings": {
+      "title": "ProjectSettings",
+      "description": "Admin-managed Google Drive folder IDs and Master Workbook status.",
+      "type": "object",
+      "properties": {
+        "projectName": { "type": "string" },
+        "connectedDriveEmail": { "type": "string" },
+        "rootDriveFolderId": { "type": "string" },
+        "photosDriveFolderId": { "type": "string" },
+        "reportsDriveFolderId": { "type": "string" },
+        "backupsDriveFolderId": { "type": "string" },
+        "masterWorkbookDriveFileId": { "type": "string" },
+        "masterWorkbookFileName": { "type": "string" },
+        "masterWorkbookVersion": { "type": "integer" },
+        "userId": { "type": "string" }
+      },
+      "required": ["projectName", "userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/system_config/{configId}": { "schema": { "$ref": "#/entities/SystemOwnershipConfig" }, "description": "Owner bootstrap & system config." },
+    "/users/{userId}/user_profile/{profileId}": { "schema": { "$ref": "#/entities/UserProfile" }, "description": "User profile." },
+    "/users/{userId}/role_assignments/{memberUid}": { "schema": { "$ref": "#/entities/RoleAssignment" }, "description": "Owner/Admin-managed role assignments." },
+    "/users/{userId}/clients/{clientId}": { "schema": { "$ref": "#/entities/ClientRecord" }, "description": "Client workspaces." },
+    "/users/{userId}/client_assignments/{assignmentId}": { "schema": { "$ref": "#/entities/ClientAssignmentRecord" }, "description": "Auditor client assignments." },
+    "/users/{userId}/access_requests/{requestId}": { "schema": { "$ref": "#/entities/AccessRequestRecord" }, "description": "Auditor client access requests." },
+    "/users/{userId}/far_assets/{assetKey}": { "schema": { "$ref": "#/entities/FARAsset" }, "description": "Imported FAR records." },
+    "/users/{userId}/counting_records/{assetKey}": { "schema": { "$ref": "#/entities/CountingRecord" }, "description": "Counting records." },
+    "/users/{userId}/asset_photos/{photoId}": { "schema": { "$ref": "#/entities/AssetPhotoRecord" }, "description": "Asset photo metadata & Drive IDs." },
+    "/users/{userId}/master_workbook_state/{stateId}": { "schema": { "$ref": "#/entities/MasterWorkbookSyncMetadata" }, "description": "Master Workbook Drive sync metadata." },
+    "/users/{userId}/deletion_jobs/{jobId}": { "schema": { "$ref": "#/entities/DeletionJobRecord" }, "description": "Permanent Client and User deletion jobs." },
+    "/users/{userId}/project_settings/{settingId}": { "schema": { "$ref": "#/entities/ProjectSettings" }, "description": "Admin project & Drive settings." }
+  }
+}

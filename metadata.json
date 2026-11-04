@@ -1,0 +1,6 @@
+{
+  "name": "AssetFlow",
+  "description": "Fixed Asset Physical Counting & Verification App with 29-field FAR audit workflow, exception tracking, and Excel import/export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

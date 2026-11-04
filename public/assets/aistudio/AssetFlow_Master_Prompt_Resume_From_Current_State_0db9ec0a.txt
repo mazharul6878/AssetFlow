@@ -1,0 +1,878 @@
+# RESUME / CONTINUATION INSTRUCTIONS — READ FIRST
+
+You are continuing an EXISTING Google AI Studio project. The previous model/session was interrupted by quota-limit errors and `Invalid argument` errors.
+
+## Mandatory continuation behavior
+1. Treat the complete master specification below as the primary source of truth.
+2. Inspect the CURRENT project files, current implementation, recent changes/checkpoints, and actual build/preview status before editing.
+3. Create an implementation checklist from the master specification and compare every requirement with the current codebase.
+4. Mark each requirement as:
+   - COMPLETE AND VERIFIED
+   - PARTIALLY IMPLEMENTED / INTERRUPTED
+   - MISSING
+   - BLOCKED BY EXTERNAL CONFIGURATION OR CREDENTIALS
+   - NOT TESTED
+5. **Skip all COMPLETE AND VERIFIED items. Do not recreate them, duplicate them, or rewrite working files unnecessarily.**
+6. **Resume from the first PARTIALLY IMPLEMENTED / INTERRUPTED item, then implement MISSING items in dependency order.** If the exact interruption point cannot be established, use the actual code and build state to determine the safest next task.
+7. Do not assume that a file is complete merely because it exists or has a green checkmark. Inspect its implementation and verify behavior where possible.
+8. Preserve working code, current data, backend configuration, authentication, Firebase configuration, Google Drive configuration, application IDs, package names, and existing integrations. Do not reset the project or restore/revert a checkpoint automatically.
+9. Do not repeat the entire audit or rebuild the app from scratch. Do not make broad changes when a targeted fix is sufficient.
+10. Before making edits, give a concise status report showing verified completed work, interrupted/partial work, missing work, and blockers. Then continue implementation in the same session; do not stop at a proposal.
+11. If quota or `Invalid argument` errors prevent a task from running, report the exact blocker and suggest a smaller, targeted operation. Do not claim success.
+12. After each implementation step, verify the changed files and any available build/preview/tests. Report PASS, FAIL, BLOCKED, or NOT TESTED honestly.
+
+## Latest approved changes
+- Official app name: **AssetFlow**
+- Subtitle: **Fixed Asset Verification/Counting System**
+- Login page must contain only the existing app icon/logo, app name, subtitle, Google Sign-In option, and Email & Password option/form. Remove all tips, display-name fields, helper text, feature explanations, audit-trail descriptions, and other unnecessary informational text from the login page.
+- Keep the existing light, minimal UI and approved palette. Do not add glassmorphism.
+- The user wants to evaluate TeraBox as a free-first storage alternative. **Do not switch production storage yet.** First verify whether a documented and secure TeraBox integration can support authentication, upload/download, folder organization, file retrieval, photo sharing policy, and safe updates to the existing central Excel workbook. Keep the current Google Drive setup intact until the user explicitly approves a verified migration plan. Do not invent APIs or claim TeraBox works without actual verification.
+- These latest changes override conflicting app-branding/login details only. The original master specification below remains authoritative for all other requirements.
+
+## Critical instruction
+Continue from the actual current project state. Skip work already completed and verified; resume unfinished or interrupted work; implement only missing or incorrect requirements. Do not duplicate existing pages/services/navigation or delete working project files without a justified need and explicit authorization.
+
+---
+
+# ORIGINAL MASTER SPECIFICATION
+The complete original master prompt follows. Preserve all of its requirements unless explicitly overridden by the latest approved changes above.
+
+---
+
+# MASTER PROMPT — FIXED ASSET COUNT APP
+## Complete Implementation | Strict Scope Control | Google AI Studio
+
+You are a senior application engineer, UI/UX designer, backend architect, Excel automation specialist, Google Drive integration engineer, and QA engineer.
+
+Your task is to inspect, complete, and implement the existing Fixed Asset Count App project according to the exact specifications below.
+
+This is a full implementation task. Do not merely produce mockups, UI prototypes, documentation, or sample code. Implement the actual application functionality wherever the existing environment and available credentials permit.
+
+**ABSOLUTE SCOPE RULE:** Everything described in this prompt is the approved scope of the application. Do not add any feature, page, module, navigation item, workflow, or integration outside this specification. If something is not explicitly required here, do not invent it.
+
+---
+
+# 1. AUDIT THE EXISTING PROJECT FIRST
+
+Before changing any code:
+
+1. Inspect the complete existing project, source files, navigation, dependencies, authentication, database configuration, Excel processing, Google Drive integration, build configuration, and UI components.
+2. Determine the actual application framework and preserve its existing architecture wherever practical.
+3. Identify working functionality, incomplete functionality, placeholders, build errors, and missing external configuration.
+4. Reuse working components and integrations that satisfy this specification.
+5. Repair incomplete implementations and replace incorrect implementations only when necessary.
+6. Do not create duplicate pages, duplicate services, duplicate navigation graphs, or parallel implementations of existing functionality.
+7. Do not reset a working database, delete existing production data, replace credentials, or remove working integrations without necessity and explicit authorization.
+8. If Firebase or Google Drive is already configured, inspect and validate the existing setup before making changes.
+9. If credentials or external permissions are missing, implement all possible code and identify the exact remaining setup required.
+10. Do not claim that an integration works unless it has been tested successfully.
+
+After the audit, proceed with implementation without stopping at a proposal or audit report.
+
+# 2. APPLICATION PURPOSE
+
+The app is exclusively for fixed asset physical verification.
+
+Its scope includes:
+
+- Admin-controlled Excel configuration.
+- Asset Register reference lookup.
+- Physical asset counting.
+- Daily consolidated Input Sheets.
+- User submissions and correction workflows.
+- Admin and authorized-reviewer review.
+- Review requests and notifications.
+- Excel download and re-upload.
+- Central Google Drive Master Input Sheet updates.
+- Asset photo storage.
+- User and reviewer permission management.
+- Operational reports and audit history.
+
+Do not add unrelated functionality.
+
+# 3. UI DESIGN SYSTEM
+
+Follow the previously approved NovaDesk AI-inspired visual language.
+
+## Colors
+
+- Light background: `#F4F5FF`
+- Aurora Blue: `#77B7FF`
+- Aurora Violet: `#8B79FF`
+- Aurora Pink: `#E2A6FF`
+- Main text: dark navy or an accessible dark neutral.
+- Surfaces: solid white.
+- Borders: subtle light neutral.
+- Shadows: restrained.
+
+## Design rules
+
+- Light theme only.
+- Modern, clean, minimalistic interface.
+- Icon-based navigation with short labels.
+- Compact cards and readable tables.
+- Minimal unnecessary text.
+- Concise validation, error, and confirmation messages.
+- Responsive layouts and accessible contrast.
+- Appropriate loading, empty, success, and error states.
+
+## Strictly prohibited
+
+- Glass effect.
+- Glassmorphism.
+- Frosted-glass surfaces.
+- Backdrop blur.
+- Excessive gradients.
+- Unnecessary decorative elements.
+- Unnecessary long paragraphs or oversized cards.
+- Unrequested navigation items or dashboard widgets.
+
+Do not add a mascot, AI assistant, or animation module.
+
+The UI must prioritize quick asset search, physical counting, Excel submission, and review.
+
+# 4. EXACT PAGE MAPPING
+
+Implement only the pages listed below.
+
+## A. Shared authentication
+
+1. Welcome / Role Entry.
+2. Login / Authentication.
+3. Password Reset, only if needed for the configured email/password login.
+
+Use trusted backend identity and permissions to determine the actual role. Never trust a role supplied by the client.
+
+## B. Admin Panel
+
+### 1. Admin Dashboard
+
+Show concise, real operational summaries:
+
+- Pending reviews.
+- Correction-required batches.
+- Review requests.
+- Approved batches awaiting publication.
+- Counting and publication status.
+
+Do not add unrelated analytics.
+
+### 2. Asset Register Upload
+
+- Upload the source Asset Register Excel workbook.
+- Validate its structure and required columns.
+- Configure the source-field mapping.
+- Store the reference dataset for asset lookup.
+- Allow authorized replacement through an explicit workflow.
+- Never overwrite the Asset Register as a side effect of a count submission.
+
+### 3. Master Input Sheet Setup
+
+- Configure the existing central Master Input Sheet workbook.
+- Validate the workbook, worksheets, headers, and required columns.
+- Preserve the existing workbook.
+- Do not create a new central workbook for each date or approval.
+
+### 4. Excel Column Mapping
+
+- Map Asset Register and Master Input Sheet columns to the required app fields.
+- Validate required mappings.
+- Detect missing, duplicated, or incompatible columns.
+- Do not silently map an incorrect column.
+
+### 5. Field Configuration
+
+- Configure the fields used in the Physical Count Form.
+- Manage dropdown fields and their options.
+- Define required fields and applicable validation rules.
+- Support adding and removing dropdown options.
+- Do not implement a generic workflow builder or unrelated customization system.
+
+### 6. Google Drive Settings
+
+- Configure the Admin-owned Google Drive connection.
+- Identify the existing central Master Input Sheet workbook.
+- Configure the asset photo root folder and access policy.
+- Show actual connection and sync status.
+- Keep secrets and private credentials out of client-side code.
+
+### 7. User Management
+
+- List and search registered users.
+- Show account status, nickname, full name, and relevant role information.
+- Grant or revoke Review Authority for any registered User.
+- Manage publication permission separately from Review Authority.
+- Preserve an audit trail of permission changes.
+- Do not automatically grant publication permission when Review Authority is granted.
+
+### 8. Review Queue
+
+Display submitted daily Input Sheets, with filters or search for:
+
+- User.
+- Counting date.
+- Submission status.
+- Submission version, where relevant.
+
+**Every applicable Input Sheet item must have exactly these three primary actions:**
+
+1. Review
+2. Send Remarks
+3. Approve for Update to Master File
+
+Do not create a separate Send Remarks page.
+
+### 9. Batch Review Detail
+
+- Open the entire daily Input Sheet.
+- Inspect the complete workbook and its records.
+- Display Asset IDs, submitted values, relevant validation results, and the submission version.
+- Allow authorized reviewers to inspect the whole batch.
+- Approval applies to the complete batch, not individual assets one by one.
+
+### 10. Review Request Inbox
+
+- Display User requests for eligible dates whose Input Sheets are awaiting review.
+- Allow authorized reviewers to open the associated submission.
+- Track request status as Requested, Under Review, Reviewed, or Closed.
+- Do not create a separate general-purpose messaging module.
+
+### 11. Reports & Export
+
+Show only:
+
+- Counting progress.
+- Submitted, pending, reviewed, approved, and published batches.
+- Discrepancies and correction status.
+- Date-based and User-based summaries.
+- Relevant Excel exports.
+
+Do not add financial analytics, forecasting, or unrelated reports.
+
+### 12. Audit Trail / Activity Log
+
+Record:
+
+- Submission and resubmission events.
+- Workbook versions.
+- Review activity.
+- Admin remarks.
+- Permission changes.
+- Approval and publication.
+- Publication failures and retries.
+
+### 13. App Settings
+
+Include only the necessary application and operational settings required by this specification.
+
+### Admin navigation rule
+
+Approve & Publish is an action within the Review Queue workflow, not a separate primary navigation page.
+
+Send Remarks is an inline action associated with the relevant Input Sheet, not a separate page.
+
+## C. End User Panel
+
+### 1. User Dashboard
+
+Show:
+
+- My accessible assets or counting workload, where configured.
+- Counted records.
+- Pending records.
+- Correction-required records.
+- Daily Input Sheet status.
+
+Do not invent an asset assignment system if none is specified.
+
+### 2. Find Asset
+
+- Search by Asset ID or Asset Number/tag.
+- Look up reference data in the Asset Register.
+- Preserve leading zeros in identifiers.
+- Display reference information as read-only.
+- Show a clear result when an asset is not found.
+- If an asset is found, allow navigation to the Physical Count Form.
+- If no asset is found, show the Manual Entry option within this same workflow.
+
+**There must be no separate Manual Entry page, menu item, dashboard shortcut, or independent entry point.**
+
+### 3. Physical Count Form
+
+Include only the following fields:
+
+- Asset ID / Asset Number.
+- Read-only Asset Register reference fields when a match exists.
+- Found status: Yes, No, Not Accessible.
+- Counting date.
+- Actual physical location.
+- Department.
+- Custodian.
+- Tag status.
+- Tag number.
+- Brand/model, where applicable.
+- Physical quantity.
+- Quantity difference, calculated according to the configured reference quantity.
+- Condition.
+- In-use status.
+- Asset photos.
+- Remarks.
+
+Use the configured dropdown values and required-field rules.
+
+Do not allow User edits to protected Asset Register reference fields.
+
+### 4. Daily Input Sheets
+
+- Show the User's consolidated Input Sheet for each counting date.
+- Display the current submission and review status.
+- Provide access to the relevant version and Admin feedback.
+- Maintain separate daily batches for each User and date.
+
+### 5. Submission History
+
+- Search by Asset ID, description, submission identifier, or relevant date.
+- Show submission status and review history.
+- Display Admin remarks.
+- Allow access to the direct correction workflow for records requiring correction.
+- Preserve earlier versions.
+
+### 6. Direct Record Correction
+
+- Open Submission History.
+- Search for the affected Asset ID.
+- Open the relevant submitted record.
+- Edit permitted observation fields.
+- Save the correction as a new revision associated with the same logical daily batch.
+- Revalidate the daily batch.
+- Regenerate or update the corrected daily Input Sheet.
+- Require resubmission of the complete batch for Admin review.
+
+Do not modify the central Master Input Sheet or Asset Register directly.
+
+### 7. Download / Upload Excel
+
+Users must be able to choose either correction method.
+
+**Method A — Direct correction**
+
+1. Open Submission History.
+2. Search for the affected asset.
+3. Edit the record.
+4. Save the correction.
+5. Resubmit the corrected daily batch.
+
+**Method B — Manual Excel correction**
+
+1. Download the complete daily Input Sheet returned for correction.
+2. Correct it in Excel or another compatible spreadsheet application.
+3. Upload the corrected workbook through the User's profile/workflow.
+4. Validate file integrity, columns, date, batch identity, Asset IDs, required fields, and duplicate records.
+5. Save a new submission version.
+6. Resubmit the entire batch for review.
+
+Both methods must lead to the same review and approval workflow.
+
+Do not silently overwrite earlier versions.
+
+### 8. Request Admin Review
+
+- Allow a User to request review for an eligible date whose Input Sheet has not yet been reviewed or remains pending.
+- Associate the request with the correct User and batch.
+- Notify the Admin and authorized reviewers.
+- Prevent unnecessary duplicate open requests for the same batch.
+- Never allow self-approval.
+
+### 9. Notifications
+
+Show relevant in-app notifications for:
+
+- Admin remarks and correction requests.
+- Submission status changes.
+- Review request updates.
+- Approval.
+- Successful publication.
+- Relevant upload or synchronization failures.
+
+Notifications must be generated from real backend events.
+
+### 10. Profile & Settings
+
+Include only:
+
+- User account information.
+- Editable full name.
+- Editable nickname.
+- Necessary account settings.
+- Logout.
+
+Do not add unrelated profile features.
+
+# 5. ASSET SEARCH AND MANUAL ENTRY RULES
+
+This workflow is mandatory.
+
+1. The User enters an Asset ID or Asset Number.
+2. The app searches the Asset Register.
+3. If the asset exists, show its reference details and proceed to the normal Physical Count Form.
+4. If the asset does not exist, display the Manual Entry option within the same workflow.
+5. Manual entry uses the same Physical Count Form, validation, daily batch, submission history, and review workflow.
+6. Do not create a separate Manual Entry page or any independent manual-entry navigation.
+7. Mark the record as not found in the Asset Register.
+8. Do not automatically add the manually entered asset to the Asset Register.
+9. Manual-entry records require the same Admin review and approval as other count records.
+
+## Automatic Excel Remarks for manual entries
+
+For every manually entered asset that was not found in the Asset Register, automatically populate the corresponding Excel `Remarks` cell with the exact text:
+
+`Not Found in Asset Register`
+
+Requirements:
+
+- Generate this value during the actual daily Input Sheet creation/update process.
+- Do not merely display the text in the UI.
+- Do not require the User to type it manually.
+- Preserve the marker through submission, review, correction, and resubmission.
+- Do not silently remove or replace this mandatory marker with unrelated free-text remarks.
+- If additional remarks are supported, preserve them without losing the mandatory marker.
+- Keep the record identifiable for Admin review.
+
+# 6. ADMIN-CONTROLLED DROPDOWNS
+
+Every configured dropdown used by the Physical Count Form must be manageable by Admin.
+
+Admin must be able to:
+
+- Add a dropdown option.
+- Remove or deactivate an option for future entries.
+- Review the current option list.
+- Use the configured options consistently across User forms.
+
+Examples of existing form dropdowns include:
+
+- Found status.
+- Department.
+- Condition.
+- In-use status.
+- Tag status.
+
+These examples are not permission to add new form fields.
+
+## Preserve historical data
+
+Removing an option must not rewrite historical submissions or erase earlier Excel values.
+
+If an option is already used in historical data, it may be deactivated for new submissions while remaining visible in old records.
+
+Validate dropdown values before saving a submission.
+
+# 7. AUTOMATIC DROPDOWN DETECTION FROM MASTER EXCEL
+
+When the Admin uploads or configures the Master Excel workbook, the app must automatically detect appropriate categorical fields and their distinct values, based on the configured column mapping.
+
+Example:
+
+If the mapped Department column contains:
+
+Finance, Accounts, HR, Finance, Audit, Accounts
+
+The unique candidate options should be:
+
+- Finance
+- Accounts
+- HR
+- Audit
+
+Requirements:
+
+1. Parse the actual workbook and identify the mapped categorical columns.
+2. Extract distinct, non-empty values from each appropriate column.
+3. Normalize obvious duplicate values consistently without altering meaningful source values.
+4. Ignore blank cells.
+5. Do not treat every arbitrary text column as a dropdown.
+6. Do not create dropdowns from Asset IDs, free-text remarks, dates, or other fields that are not configured as categorical fields.
+7. Show detected options in Field Configuration for Admin review.
+8. Allow Admin to add or remove options before applying the configuration.
+9. Reconcile detected options with existing configuration when a new workbook is uploaded.
+10. Do not silently erase existing configured options or historical data.
+11. Validate that each field is mapped to the correct source column before generating options.
+12. Use deterministic Excel parsing, not an AI model, for extraction and deduplication.
+
+Do not add a separate page for dropdown detection. It belongs in the existing Excel Column Mapping and Field Configuration workflows.
+
+# 8. FULL NAME, NICKNAME, COUNTED BY, AND REVIEWED BY
+
+Full Name and Nickname are separate profile fields.
+
+## User profile
+
+- The User can edit their Full Name.
+- The User can edit their Nickname.
+- The Nickname may be used in the app's interface and photo filenames.
+- The authenticated account identity must remain separate from editable display information.
+- Changing a nickname must not change account ownership or permissions.
+
+## Excel attribution
+
+The generated daily Input Sheet and approved Master Input Sheet must populate the applicable `Counted By` and `Reviewed By` fields with the authenticated person's **Full Name**, not their Nickname.
+
+Rules:
+
+- `Counted By`: Full Name of the authenticated User who performed the count.
+- `Reviewed By`: Full Name of the authenticated Admin or authorized reviewer who actually reviewed the batch.
+- Do not allow a User to enter another person's name as their attribution.
+- Do not derive attribution from an untrusted client-side text field.
+- Store the authenticated user ID and event timestamp alongside the attribution in the appropriate application records.
+- Preserve the historical identity and name snapshot associated with the event, so a later profile edit does not rewrite historical audit records.
+- For batch-level review, use the actual reviewer responsible for the review.
+- Never fabricate a reviewer name before a real review occurs.
+
+If the existing workbook contains separate attribution fields for individual records, populate them according to the configured column mapping.
+
+# 9. TWO SEPARATE EXCEL WORKBOOKS
+
+## A. Asset Register
+
+The Asset Register is the source/reference workbook.
+
+- Admin uploads and configures it.
+- The app uses it for Asset ID lookup.
+- Protected reference fields remain read-only during counting.
+- Counting submissions never modify it.
+- Preserve leading zeros in identifiers.
+- Replacement requires explicit Admin action and successful validation.
+
+## B. Master Input Sheet
+
+The Master Input Sheet is the existing central output workbook.
+
+- It is managed through the Admin-owned Google Drive.
+- Approved batches are published to this existing workbook.
+- Do not create a new central workbook for every date, approval, or User.
+- Preserve worksheet names, headers, formulas, formatting, and unrelated rows wherever possible.
+- Append or update only the approved mapped data.
+- Never erase unrelated content.
+- Never modify the Asset Register during publication.
+
+If the existing workbook cannot be updated safely, stop publication and report the actual error.
+
+# 10. DAILY INPUT SHEET AND VERSION MANAGEMENT
+
+- Maintain a separate consolidated daily Input Sheet for each User and counting date.
+- Keep all relevant records for that User and date in the same logical batch.
+- Assign a stable unique batch ID.
+- Track submission versions.
+- Preserve earlier submitted versions.
+- Keep Admin remarks linked to the relevant version.
+- Require review of the complete corrected batch before publication.
+- Use the same batch identity across direct-edit and Excel re-upload correction methods.
+- Clearly distinguish the current version from older versions.
+- Do not use filenames or timestamps as the sole unique batch identifier.
+
+# 11. ADMIN REVIEW QUEUE — EXACTLY THREE ACTIONS
+
+Every applicable Input Sheet item must have exactly these three primary actions:
+
+## 1. Review
+
+Open the complete workbook review interface.
+
+## 2. Send Remarks
+
+Open a compact inline dialog or composer associated with that specific Input Sheet.
+
+- Admin enters remarks.
+- Save remarks against the correct User, date, batch ID, and version.
+- Send an in-app notification.
+- Keep the remarks in Submission History.
+- User can open the affected submission from the notification or history.
+- Admin does not upload the corrected workbook for the User.
+- Do not create a separate Send Remarks page.
+
+## 3. Approve for Update to Master File
+
+- Confirm the target batch and version.
+- Validate the complete batch.
+- Check the current user's publication permission.
+- Prevent duplicate publication.
+- Update the existing central Master Input Sheet.
+- Record the actual outcome.
+
+Show a confirmation dialog before publication.
+
+### Permission behavior
+
+A reviewer with Review Authority but without publication permission may Review and Send Remarks, but cannot publish.
+
+A User must never approve their own submission through a normal User account.
+
+If the same person has a privileged reviewer role, enforce the explicitly configured permissions and applicable separation-of-duties rules.
+
+# 12. REVIEW AUTHORITY AND USER MANAGEMENT
+
+The Admin must be able to grant or revoke Review Authority for any registered User.
+
+Permissions must be enforced by the backend, not only by hiding buttons.
+
+## Admin
+
+Full administrative permissions defined by this specification.
+
+## Regular User
+
+Can perform their own authorized counting, submission, correction, review-request, and profile actions.
+
+## Review-authorized User
+
+Can review permitted batches and send remarks.
+
+## Publication-authorized reviewer
+
+Can publish only if the Admin explicitly grants publication permission.
+
+Important rules:
+
+- Granting Review Authority must not automatically grant publication permission.
+- Users cannot grant themselves permissions.
+- Users cannot edit their role.
+- Users cannot access another User's private submissions without authorization.
+- All permission changes must be logged.
+- Keep the User Management UI minimal and consistent with the existing design system.
+
+Do not add additional roles or permission modules beyond these required distinctions.
+
+# 13. GOOGLE DRIVE — ADMIN-OWNED MODEL
+
+Use one Admin-owned Google Drive for the entire application.
+
+Users must not be asked to connect their personal Google Drive accounts.
+
+## Master Input Sheet
+
+- Use the existing configured central workbook.
+- Store its stable Drive file ID in secure backend configuration.
+- Do not create a new central workbook for every approval.
+
+## Photo folder structure
+
+Use exactly this structure:
+
+Fixed Asset Photos/
+- YYYY-MM-DD/
+  - nickname_assetId.ext
+  - nickname_assetId_1.ext
+  - nickname_assetId_2.ext
+
+Rules:
+
+- Create the root folder once.
+- Create one date folder for each date.
+- All Users' photos taken on the same date go into that shared date folder.
+- Preserve leading zeros in Asset IDs.
+- Use the actual file extension.
+- Resolve filename collisions using `_1`, `_2`, and subsequent suffixes.
+- Make retries idempotent to avoid unnecessary duplicates.
+- Keep photos until the Admin deletes them.
+- Do not implement automatic deletion or retention expiry.
+
+The required photo sharing policy is `Anyone with the link — Viewer`.
+
+Apply that permission only to the intended photo files. Do not inadvertently make the Asset Register, Master Input Sheet, or unrelated Drive files public.
+
+If the organization's Google Workspace policy prevents public-link sharing, show the actual error and report the limitation honestly.
+
+Store appropriate photo metadata, including Drive file ID, share URL, upload status, owner UID, nickname snapshot, Asset ID, counting date, and batch reference.
+
+Keep secrets out of client-side code and ordinary metadata.
+
+# 14. BACKEND AND EXCEL PROCESSING
+
+Inspect the existing project and use one coherent backend architecture.
+
+If Firebase is already the selected backend, use the existing Firebase Authentication and Firestore configuration where appropriate for:
+
+- User identity and permissions.
+- Asset reference data.
+- Daily batches and versions.
+- Submission metadata.
+- Remarks.
+- Review requests.
+- Notifications.
+- Publication state.
+- Photo metadata.
+- Audit history.
+
+Do not replace a functioning existing backend without necessity and explicit authorization.
+
+Google Drive is the central file store for the Master Input Sheet and photos. The app database and Drive must not be confused.
+
+## Excel processing must be deterministic
+
+Use an appropriate Excel parsing/writing library. Do not use an AI model to guess spreadsheet values, generate dropdown options, or decide whether a batch is valid.
+
+Validate:
+
+- File integrity.
+- Required worksheets.
+- Required headers.
+- Column mappings.
+- Asset IDs.
+- Counting date and batch identity.
+- Required fields.
+- Numeric quantity fields.
+- Dropdown values.
+- Duplicate records.
+- Workbook compatibility.
+
+Preserve existing formulas, formatting, worksheet names, and unrelated content to the extent supported by the selected library.
+
+If a workbook cannot be safely updated without losing required structure or formatting, do not publish it silently.
+
+## Duplicate and retry protection
+
+- Use a stable unique batch ID.
+- Track the approved version.
+- Prevent the same approved version from being published twice.
+- Use safe, coordinated publication operations wherever possible.
+- Reconcile the existing publication state before retrying after an ambiguous network failure.
+- Never mark a batch Published until the actual workbook update has succeeded and been confirmed.
+- If publication fails, retain the appropriate non-published state and provide an actionable error.
+- Preserve an audit trail for failed attempts and retries.
+
+# 15. STATUS MANAGEMENT
+
+Use a consistent state model across Admin and User views.
+
+Use the following statuses where applicable:
+
+- Draft / In Progress.
+- Submitted / Pending Review.
+- Under Review.
+- Changes Requested.
+- Corrected / Resubmitted.
+- Approved — Awaiting Master Update.
+- Published.
+- Rejected.
+- Sync Failed.
+
+Review requests have their own status lifecycle:
+
+- Requested.
+- Under Review.
+- Reviewed.
+- Closed.
+
+Do not show a status unless the underlying event or condition actually exists.
+
+Approval and successful publication are different events. Keep them distinct.
+
+# 16. IMPLEMENTATION ORDER
+
+Complete the work in this order:
+
+1. Audit the existing codebase and integrations.
+2. Establish the exact approved page mapping.
+3. Implement the light, minimalistic design system and remove any glass effect.
+4. Implement authentication and secure role-based navigation.
+5. Implement Asset Register Upload, Master Input Sheet Setup, Column Mapping, Field Configuration, and Google Drive Settings.
+6. Implement automatic dropdown detection from mapped Excel columns and Admin option management.
+7. Implement User Management, Review Authority, and separate publication permission.
+8. Implement Asset ID search and the not-found-to-Manual-Entry workflow within the same form.
+9. Implement the Physical Count Form and automatic `Not Found in Asset Register` Remarks for manual entries.
+10. Implement daily Input Sheets and Submission History.
+11. Implement direct record correction.
+12. Implement complete Excel download, manual correction, upload, versioning, and resubmission.
+13. Implement the Admin Review Queue with exactly three primary actions.
+14. Implement Batch Review Detail, Review Request Inbox, inline remarks, and in-app notifications.
+15. Implement approval and safe publication to the existing Master Input Sheet.
+16. Implement Drive photo storage and the specified folder/filename rules.
+17. Implement Reports & Export, Audit Trail, and limited App Settings.
+18. Implement and verify backend access controls.
+19. Run available build checks and tests.
+20. Fix errors and report any remaining blockers honestly.
+
+Do not stop after generating the UI. Implement the backend and real operations wherever credentials and external services permit.
+
+# 17. REQUIRED TESTS
+
+Verify the following scenarios wherever the environment permits:
+
+1. A regular User cannot access Admin pages.
+2. A regular User cannot review or publish another User's batch.
+3. A reviewer with Review Authority can review and send remarks.
+4. A reviewer without publication permission cannot publish.
+5. The Admin can grant and revoke Review Authority.
+6. Asset Register lookup preserves leading zeros.
+7. A found asset opens the normal Physical Count Form.
+8. A not-found asset exposes Manual Entry within the same workflow.
+9. No separate Manual Entry page or navigation exists.
+10. Manual-entry records receive the exact automatic Excel Remarks `Not Found in Asset Register`.
+11. Admin can add and remove dropdown options.
+12. Mapped categorical Excel columns generate distinct candidate dropdown options.
+13. Arbitrary text, remarks, Asset IDs, and unrelated columns do not automatically become dropdowns.
+14. The User can edit their own Full Name and Nickname.
+15. `Counted By` uses the actual counter's Full Name.
+16. `Reviewed By` uses the actual reviewer's Full Name.
+17. Historical audit identity and attribution are not rewritten by later profile edits.
+18. A complete daily Input Sheet can be submitted.
+19. Admin remarks are persisted and generate a real in-app notification.
+20. Direct record correction creates a new revision.
+21. Excel download, manual correction, upload, and resubmission work as specified.
+22. Corrected batches return to the Review Queue.
+23. Review requests appear in the Review Request Inbox.
+24. An approved batch updates the existing central Master Input Sheet.
+25. The same approved batch version cannot be published twice.
+26. A failed publication is never falsely marked Published.
+27. The Asset Register remains unchanged by count submissions.
+28. Photos follow the date-folder and filename rules.
+29. Retrying photo uploads does not unnecessarily duplicate files.
+30. Existing Master Input Sheet formatting and unrelated content remain intact to the extent supported.
+31. Admin and User statuses remain consistent.
+32. No unrequested pages or features have been added.
+
+Report which tests actually passed, failed, or could not run. Do not present an untested assumption as a successful test.
+
+# 18. FINAL SCOPE VERIFICATION
+
+Before finishing, verify the complete implementation against this prompt.
+
+Confirm that:
+
+- Only the specified pages exist.
+- No unrequested module or navigation item has been introduced.
+- There is no separate Manual Entry page.
+- Manual Entry is available only after a failed Asset Register lookup.
+- Manual-entry Excel records receive the required automatic Remarks.
+- Admin can manage dropdown options.
+- Appropriate categorical Excel values can be detected automatically.
+- Counted By and Reviewed By use the relevant authenticated person's Full Name.
+- Nickname and Full Name are separate editable profile fields.
+- Review Queue has exactly three primary actions: Review, Send Remarks, and Approve for Update to Master File.
+- Send Remarks is inline, not a separate page.
+- Review Authority and publication permission are distinct.
+- Both correction methods are implemented.
+- The Admin-owned Google Drive model is followed.
+- The central Master Input Sheet is an existing workbook.
+- Duplicate publication is prevented.
+- The UI is light, minimalistic, and free of glass effect.
+- All earlier requirements in this prompt remain intact.
+
+Remove any new unrequested UI element or feature introduced during implementation. Do not delete unrelated pre-existing project files without a justified need.
+
+# 19. FINAL IMPLEMENTATION REPORT
+
+At completion, report:
+
+1. Pages and workflows implemented.
+2. Backend and authentication integrations actually verified.
+3. Excel and Google Drive operations actually verified.
+4. Automatic dropdown detection and option management status.
+5. Manual Entry and automatic Remarks status.
+6. Counted By / Reviewed By attribution status.
+7. Permission and security checks completed.
+8. Tests passed, failed, or not runnable.
+9. Remaining external configuration or manual setup.
+10. Build status and remaining blockers.
+
+**FINAL COMMAND:** Implement exactly the Fixed Asset Count App specified in this prompt. Do not invent or add features outside the approved scope. Prioritize correct Excel processing, secure role permissions, reliable review and correction workflows, preservation of existing workbook data, and an accurate implementation report. Never claim a feature works unless it has been verified.

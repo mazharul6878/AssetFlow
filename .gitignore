@@ -1,0 +1,32 @@
+*.iml
+node_modules/
+.gradle
+.kotlin
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+.env
+debug.keystore
+*-debug.log
+
+# Local build and runtime artifacts
+hs_err_pid*.log
+backend-worker/.wrangler/
+backend-worker/test_measured_capacity.sqlite
+backend-worker/*.sqlite
+backend-worker/*.sqlite-shm
+backend-worker/*.sqlite-wal
+
+
+# Exclude unverified service-account credential example
+backend-worker/.dev.vars.example
